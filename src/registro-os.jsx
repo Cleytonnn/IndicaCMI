@@ -23,24 +23,23 @@ const EMPTY = {
   registroFoto: "Enviado",
   observacao: "",
   naoConformidade: "",
-  arquivos: [],
   regrasOuro: {
     desligamentoRede: false,
     seccionamento: false,
     bloqueio: false,
     atestar: false,
-    epi: false,
     protegerEquipamentosEnergizados: false,
+    epi: false,
+  },
+  regrasArquivos: {
+    desligamentoRede: null,
+    seccionamento: null,
+    bloqueio: null,
+    atestar: null,
+    protegerEquipamentosEnergizados: null,
+    epi: null,
   },
 };
-
-const FOTO_STYLES = {
-  "Enviado": { bg: "#EAF4EE", fg: "#1F6B3A", dot: "#2F9E52" },
-  "Enviado com Não conformidade": { bg: "#FBF0E4", fg: "#9A5B14", dot: "#E8930C" },
-  "Não enviado": { bg: "#FBEAEA", fg: "#A22E2E", dot: "#D64545" },
-};
-
-const CHART_COLORS = { conforme: "#2F9E52", naoConforme: "#D64545", accent: "#E8930C", accent2: "#4A9BD9" };
 
 const RULES_DE_OURO = {
   desligamentoRede: "Desligamento de rede",
@@ -121,31 +120,31 @@ export default function App() {
     setForm(EMPTY);
   };
 
-  const handleFilesUpload = async (event) => {
+  const handleRuleFileUpload = async (event, ruleKey) => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
-    const readFiles = await Promise.all(
-      files.map((file) =>
-        new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve({
-            name: file.name,
-            type: file.type,
-            size: file.size,
-            content: reader.result,
-          });
-          reader.readAsDataURL(file);
-        })
-      )
-    );
-    update("arquivos", [...form.arquivos, ...readFiles]);
+    const file = files[0];
+    const fileObj = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        content: reader.result,
+      });
+      reader.readAsDataURL(file);
+    });
+    setForm((f) => ({
+      ...f,
+      regrasArquivos: { ...f.regrasArquivos, [ruleKey]: fileObj },
+    }));
     event.target.value = "";
   };
 
-  const handleRemoveFile = (index) => {
+  const handleRemoveRuleFile = (ruleKey) => {
     setForm((f) => ({
       ...f,
-      arquivos: f.arquivos.filter((_, i) => i !== index),
+      regrasArquivos: { ...f.regrasArquivos, [ruleKey]: null },
     }));
   };
 
@@ -408,23 +407,6 @@ export default function App() {
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24, marginBottom: 20 }}>
-            <div>
-              <label className="field-label">Arquivos</label>
-              <input type="file" multiple className="field-input" onChange={handleFilesUpload} style={{ padding: 4 }} />
-              {form.arquivos.length > 0 && (
-                <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                  {form.arquivos.map((file, index) => (
-                    <div key={`${file.name}-${index}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#1A1F24", border: "1px solid #2E3540", borderRadius: 6, padding: "8px 10px" }}>
-                      <span style={{ fontSize: 12, color: "#E8EBEE", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{file.name}</span>
-                      <button
-                        onClick={() => handleRemoveFile(index)}
-                        style={{ background: "none", border: "1px solid #2E3540", color: "#D64545", borderRadius: 4, padding: "4px 8px", cursor: "pointer", fontSize: 12 }}
-                      >Remover</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 24, marginBottom: 20 }}>
@@ -552,7 +534,7 @@ export default function App() {
                   <th>Processo</th>
                   <th>Mat. Líder</th>
                   <th>Mat. Eletricista</th>
-                  <th>Arquivos</th>
+                  <th>Arquivos de Regras</th>
                   <th>Regras de Ouro</th>
                   <th>Foto</th>
                   <th></th>
@@ -595,8 +577,8 @@ export default function App() {
                       <td>{r.matriculaEletricista || "—"}</td>
                       <td>
                         <div style={{ display: "grid", gap: 4 }}>
-                          {r.arquivos?.map((file, idx) => (
-                            <span key={`${file.name}-${idx}`} style={{ fontSize: 11, color: "#E8EBEE" }}>{file.name}</span>
+                          {Object.entries(r.regrasArquivos || {}).filter(([, file]) => file).map(([key, file]) => (
+                            <span key={`${key}-${file.name}`} style={{ fontSize: 11, color: "#E8EBEE" }}>{`${RULES_DE_OURO[key]}: ${file.name}`}</span>
                           ))}
                         </div>
                       </td>
@@ -656,15 +638,34 @@ export default function App() {
               {Object.entries(RULES_DE_OURO).map(([key, label]) => (
                 <div key={key} style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 14, alignItems: "center", padding: "12px 14px", background: form.regrasOuro[key] ? "#1F2E1F" : "#14181C", borderRadius: 8, border: "1px solid #2E3540" }}>
                   <img src={getRuleImage(key)} alt={label} style={{ width: 56, height: 56, borderRadius: 12, objectFit: "cover", background: "#0F1519" }} />
-                  <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", margin: 0 }}>
-                    <input
-                      type="checkbox"
-                      checked={form.regrasOuro[key]}
-                      onChange={(e) => update("regrasOuro", { ...form.regrasOuro, [key]: e.target.checked })}
-                      style={{ width: 16, height: 16 }}
-                    />
-                    <span style={{ fontSize: 13, color: "#E8EBEE" }}>{label}</span>
-                  </label>
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", margin: 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={form.regrasOuro[key]}
+                        onChange={(e) => update("regrasOuro", { ...form.regrasOuro, [key]: e.target.checked })}
+                        style={{ width: 16, height: 16 }}
+                      />
+                      <span style={{ fontSize: 13, color: "#E8EBEE" }}>{label}</span>
+                    </label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <input
+                        type="file"
+                        className="field-input"
+                        onChange={(e) => handleRuleFileUpload(e, key)}
+                        style={{ padding: 8 }}
+                      />
+                      {form.regrasArquivos[key] && (
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: "#14181C", border: "1px solid #2E3540", borderRadius: 6 }}>
+                          <span style={{ fontSize: 12, color: "#E8EBEE", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{form.regrasArquivos[key].name}</span>
+                          <button
+                            onClick={() => handleRemoveRuleFile(key)}
+                            style={{ background: "none", border: "1px solid #2E3540", color: "#D64545", borderRadius: 4, padding: "4px 8px", cursor: "pointer", fontSize: 12 }}
+                          >Remover</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
