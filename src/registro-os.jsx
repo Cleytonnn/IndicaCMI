@@ -638,6 +638,20 @@ export default function App() {
               REGRAS DE OURO / NR10
             </div>
           </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginBottom: 20 }}>
+            <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 16 }}>
+              <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Encarregado</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#E8EBEE" }}>{form.encarregado || "—"}</div>
+            </div>
+            <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 16 }}>
+              <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>OS</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#E8EBEE" }}>{form.os || "—"}</div>
+            </div>
+            <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 16 }}>
+              <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Tipo de Serviço</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#E8EBEE" }}>{form.tipoServico || "—"}</div>
+            </div>
+          </div>
           <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 20, marginBottom: 20 }}>
             <div className="disp" style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Marque as etapas aplicáveis ao registro atual</div>
             <div style={{ display: "grid", gap: 12 }}>
