@@ -407,7 +407,7 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24, marginBottom: 20 }}>
             <div>
               <label className="field-label">Arquivos</label>
               <input type="file" multiple className="field-input" onChange={handleFilesUpload} style={{ padding: 4 }} />
@@ -424,25 +424,6 @@ export default function App() {
                   ))}
                 </div>
               )}
-            </div>
-            <div>
-              <label className="field-label">Regras de Ouro (NR10)</label>
-              <div style={{ display: "grid", gap: 12 }}>
-                {Object.entries(RULES_DE_OURO).map(([key, label]) => (
-                  <div key={key} style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 14, alignItems: "center", padding: "12px 14px", background: form.regrasOuro[key] ? "#1F2E1F" : "#14181C", borderRadius: 8, border: "1px solid #2E3540" }}>
-                    <img src={getRuleImage(key)} alt={label} style={{ width: 56, height: 56, borderRadius: 12, objectFit: "cover", background: "#0F1519" }} />
-                    <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", margin: 0 }}>
-                      <input
-                        type="checkbox"
-                        checked={form.regrasOuro[key]}
-                        onChange={(e) => update("regrasOuro", { ...form.regrasOuro, [key]: e.target.checked })}
-                        style={{ width: 16, height: 16 }}
-                      />
-                      <span style={{ fontSize: 13, color: "#E8EBEE" }}>{label}</span>
-                    </label>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
 
@@ -669,6 +650,25 @@ export default function App() {
               REGRAS DE OURO / NR10
             </div>
           </div>
+          <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 20, marginBottom: 20 }}>
+            <div className="disp" style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Marque as etapas aplicáveis ao registro atual</div>
+            <div style={{ display: "grid", gap: 12 }}>
+              {Object.entries(RULES_DE_OURO).map(([key, label]) => (
+                <div key={key} style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 14, alignItems: "center", padding: "12px 14px", background: form.regrasOuro[key] ? "#1F2E1F" : "#14181C", borderRadius: 8, border: "1px solid #2E3540" }}>
+                  <img src={getRuleImage(key)} alt={label} style={{ width: 56, height: 56, borderRadius: 12, objectFit: "cover", background: "#0F1519" }} />
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={form.regrasOuro[key]}
+                      onChange={(e) => update("regrasOuro", { ...form.regrasOuro, [key]: e.target.checked })}
+                      style={{ width: 16, height: 16 }}
+                    />
+                    <span style={{ fontSize: 13, color: "#E8EBEE" }}>{label}</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, marginBottom: 20 }}>
             {Object.entries(RULES_DE_OURO).map(([key, label]) => (
               <div key={key} style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 18 }}>
@@ -679,7 +679,7 @@ export default function App() {
             ))}
           </div>
           <div style={{ background: "#14181C", border: "1px solid #2E3540", borderRadius: 8, padding: 18 }}>
-            <div style={{ fontSize: 12, color: "#6B7580", marginBottom: 12 }}>Use a aba Registro para marcar quais regras de ouro se aplicam a cada serviço. Aqui você acompanha os itens NR10 mais utilizados no histórico.</div>
+            <div style={{ fontSize: 12, color: "#6B7580", marginBottom: 12 }}>A seleção feita aqui será aplicada ao registro atual. Depois volte à aba Registro para salvar ou editar o registro com essas regras.</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
               {Object.entries(ruleCounts).map(([key, count]) => (
                 <div key={key} style={{ padding: 12, background: "#1C2126", borderRadius: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
