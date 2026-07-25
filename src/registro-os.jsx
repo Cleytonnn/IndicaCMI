@@ -59,6 +59,12 @@ const RULE_IMAGES = {
   epi: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%23212A30'/><path d='M38 80c0-25 22-32 22-32s22 7 22 32v10H38z' fill='%23E8930C'/><path d='M52 84h16M52 92h16' stroke='%2314181C' stroke-width='6' fill='none'/></svg>`,
 };
 
+const FOTO_STYLES = {
+  "Enviado": { bg: "#EAF4EE", fg: "#1F6B3A", dot: "#2F9E52" },
+  "Enviado com Não conformidade": { bg: "#FBF0E4", fg: "#9A5B14", dot: "#E8930C" },
+  "Não enviado": { bg: "#FBEAEA", fg: "#A22E2E", dot: "#D64545" },
+};
+
 const getRuleImage = (key) => RULE_IMAGES[key] || "";
 
 export default function App() { 
