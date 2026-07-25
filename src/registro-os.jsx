@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
+import { jsPDF } from "jspdf";
 import {
   Zap, Plus, Trash2, Download, Camera, CheckCircle2, XCircle,
   LayoutGrid, ClipboardList, AlertTriangle,
@@ -193,7 +194,6 @@ export default function App() {
   const exportXlsx = () => {
     const data = filtered.map((r) => {
       const selectedRules = Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]);
-      const allRulesSelected = Object.keys(RULES_DE_OURO).every((key) => r.regrasOuro?.[key]);
       return {
         "Data": r.data,
         "Nome do Encarregado": r.encarregado,
@@ -201,12 +201,10 @@ export default function App() {
         "Tipo de Serviço": r.tipoServico,
         "Regional": r.regional,
         "Observação": r.observacao,
-        "Não conformidade": r.naoConformidade,
+        "Status": r.conformidade,
+        "Descrição da Não Conformidade": r.descNaoConformidade,
         "Regras de Ouro": selectedRules.join("; "),
-        "Arquivos": r.arquivos?.map((f) => f.name).join(", "),
-        "Conforme": allRulesSelected ? "X" : "",
-        "Não conforme": allRulesSelected ? "" : "X",
-        "Descrição da Não Conformidade": allRulesSelected ? "" : (r.conformidade === "Não conforme" ? r.descNaoConformidade : ""),
+        "Arquivos": r.regrasArquivos ? Object.entries(r.regrasArquivos).filter(([, file]) => file).map(([key, file]) => `${RULES_DE_OURO[key]}: ${file.name}`).join("; ") : "",
         "Processo": r.processo,
         "Matrícula do Eletricista Líder": r.matriculaLider,
         "Matrícula do Eletricista": r.matriculaEletricista,
@@ -216,14 +214,54 @@ export default function App() {
     const ws = XLSX.utils.json_to_sheet(data);
     ws["!cols"] = [
       { wch: 12 }, { wch: 22 }, { wch: 12 }, { wch: 20 }, { wch: 14 },
-      { wch: 20 }, { wch: 20 }, { wch: 32 }, { wch: 26 }, { wch: 10 },
-      { wch: 12 }, { wch: 34 }, { wch: 16 }, { wch: 24 }, { wch: 20 }, { wch: 26 },
+      { wch: 20 }, { wch: 16 }, { wch: 30 }, { wch: 34 }, { wch: 20 },
+      { wch: 30 }, { wch: 24 }, { wch: 20 }, { wch: 26 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Registros");
     const suffix = monthFilter === "all" ? new Date().toISOString().slice(0, 10) : `${monthFilter}-historic`;
     XLSX.writeFile(wb, `registros_os_${suffix}.xlsx`);
-  }; 
+  };
+
+  const exportPdf = () => {
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const margin = 40;
+    const lineHeight = 18;
+    let y = margin;
+    const headers = [
+      "Data", "Encarregado", "OS", "Tipo de Serviço", "Regional", "Status", "Não conformidade", "Regras de Ouro"
+    ];
+    doc.setFontSize(12);
+    doc.text("Relatório de Registros", margin, y);
+    y += lineHeight * 1.5;
+    doc.setFontSize(10);
+    doc.text(headers.join("  |  "), margin, y);
+    y += lineHeight;
+    doc.setLineWidth(0.5);
+    doc.line(margin, y - 8, 555, y - 8);
+
+    filtered.forEach((r) => {
+      if (y > 740) {
+        doc.addPage();
+        y = margin;
+      }
+      const selectedRules = Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]).join("; ");
+      const row = [
+        r.data || "-",
+        r.encarregado || "-",
+        r.os || "-",
+        r.tipoServico || "-",
+        r.regional || "-",
+        r.conformidade || "-",
+        r.descNaoConformidade || "-",
+        selectedRules || "-",
+      ];
+      doc.text(row.join("  |  "), margin, y);
+      y += lineHeight;
+    });
+    const suffix = monthFilter === "all" ? new Date().toISOString().slice(0, 10) : `${monthFilter}-historic`;
+    doc.save(`registros_os_${suffix}.pdf`);
+  };
 
   const totals = useMemo(() => {
     const conforme = rows.filter((r) => r.conformidade === "Conforme").length;
@@ -532,6 +570,14 @@ export default function App() {
                   ))}
                 </select>
               </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button className="btn-ghost" onClick={exportXlsx} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <Download size={14} /> XLS
+                </button>
+                <button className="btn-ghost" onClick={exportPdf} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <Download size={14} /> PDF
+                </button>
+              </div>
             </div>
           <div style={{ overflowX: "auto" }}>
             <table>
@@ -647,16 +693,31 @@ export default function App() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginBottom: 20 }}>
             <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 16 }}>
-              <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Encarregado</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#E8EBEE" }}>{form.encarregado || "—"}</div>
+              <label className="field-label" style={{ marginBottom: 10 }}>Encarregado</label>
+              <input
+                value={form.encarregado}
+                onChange={(e) => update("encarregado", e.target.value)}
+                className="field-input"
+                placeholder="Digite o encarregado"
+              />
             </div>
             <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 16 }}>
-              <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>OS</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#E8EBEE" }}>{form.os || "—"}</div>
+              <label className="field-label" style={{ marginBottom: 10 }}>OS</label>
+              <input
+                value={form.os}
+                onChange={(e) => update("os", e.target.value)}
+                className="field-input"
+                placeholder="Digite a OS"
+              />
             </div>
             <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 16 }}>
-              <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Tipo de Serviço</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#E8EBEE" }}>{form.tipoServico || "—"}</div>
+              <label className="field-label" style={{ marginBottom: 10 }}>Tipo de Serviço</label>
+              <input
+                value={form.tipoServico}
+                onChange={(e) => update("tipoServico", e.target.value)}
+                className="field-input"
+                placeholder="Digite o tipo de serviço"
+              />
             </div>
           </div>
           <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 20, marginBottom: 20 }}>
