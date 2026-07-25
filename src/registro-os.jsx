@@ -65,6 +65,13 @@ const FOTO_STYLES = {
   "Não enviado": { bg: "#FBEAEA", fg: "#A22E2E", dot: "#D64545" },
 };
 
+const CHART_COLORS = {
+  conforme: "#2F9E52",
+  naoConforme: "#D64545",
+  accent: "#E8930C",
+  accent2: "#4D8FFF",
+};
+
 const getRuleImage = (key) => RULE_IMAGES[key] || "";
 
 export default function App() { 
@@ -650,6 +657,43 @@ export default function App() {
             <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 16 }}>
               <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Tipo de Serviço</div>
               <div style={{ fontSize: 15, fontWeight: 700, color: "#E8EBEE" }}>{form.tipoServico || "—"}</div>
+            </div>
+          </div>
+          <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 20, marginBottom: 20 }}>
+            <div className="disp" style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Status de conformidade</div>
+            <div style={{ display: "grid", gap: 14 }}>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {['Conforme', 'Não conforme'].map((option) => {
+                  const active = form.conformidade === option;
+                  return (
+                    <div
+                      key={option}
+                      onClick={() => update('conformidade', option)}
+                      style={{
+                        cursor: 'pointer', padding: '10px 14px', borderRadius: 6,
+                        border: `1px solid ${active ? '#E8930C' : '#2E3540'}`,
+                        background: active ? '#E8930C' : '#14181C',
+                        color: active ? '#14181C' : '#E8EBEE',
+                        fontWeight: 700,
+                        minWidth: 140,
+                        textAlign: 'center',
+                      }}
+                    >{option}</div>
+                  );
+                })}
+              </div>
+              {form.conformidade === 'Não conforme' && (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <div style={{ fontSize: 12, color: '#8A93A0' }}>Descreva a não conformidade</div>
+                  <textarea
+                    className="field-input"
+                    style={{ minHeight: 100, resize: 'vertical', fontFamily: 'inherit' }}
+                    value={form.descNaoConformidade}
+                    onChange={(e) => update('descNaoConformidade', e.target.value)}
+                    placeholder="Descreva a não conformidade para este registro"
+                  />
+                </div>
+              )}
             </div>
           </div>
           <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 20, marginBottom: 20 }}>
