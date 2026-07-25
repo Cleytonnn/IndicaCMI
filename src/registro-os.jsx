@@ -82,6 +82,7 @@ export default function App() {
   const [editingId, setEditingId] = useState(null);
   const [filter, setFilter] = useState("");
   const [monthFilter, setMonthFilter] = useState("all");
+  const [dashboardMonth, setDashboardMonth] = useState("all");
 
   useEffect(() => {
     const saved = window.localStorage.getItem("indicaServicosRows");
@@ -169,6 +170,11 @@ export default function App() {
     });
     return Array.from(months).sort();
   }, [rows]);
+
+  const dashboardRows = useMemo(() => {
+    if (dashboardMonth === "all") return rows;
+    return rows.filter((r) => r.data && r.data.slice(0, 7) === dashboardMonth);
+  }, [rows, dashboardMonth]);
 
   const formatMonthLabel = (value) => {
     if (!value || value === "all") return "Todos os meses";
@@ -276,7 +282,7 @@ export default function App() {
     const byDate = {};
     const byEncarregado = {};
 
-    rows.forEach((r) => {
+    dashboardRows.forEach((r) => {
       const reg = r.regional || "Não informado";
       if (!byRegional[reg]) byRegional[reg] = { name: reg, Conforme: 0, "Não conforme": 0 };
       byRegional[reg][r.conformidade] += 1;
@@ -301,11 +307,15 @@ export default function App() {
     const dateData = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
     const topEncarregados = Object.entries(byEncarregado).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
 
-    const taxaConformidade = rows.length ? Math.round((totals.conforme / rows.length) * 100) : 0;
-    const naoEnviadas = rows.filter((r) => r.registroFoto === "Não enviado").length;
+    const conforme = dashboardRows.filter((r) => r.conformidade === "Conforme").length;
+    const naoConforme = dashboardRows.length - conforme;
+    const taxaConformidade = dashboardRows.length ? Math.round((conforme / dashboardRows.length) * 100) : 0;
+    const naoEnviadas = dashboardRows.filter((r) => r.registroFoto === "Não enviado").length;
+    const goldRuleCount = dashboardRows.filter((r) => Object.values(r.regrasOuro || {}).some(Boolean)).length;
+    const goldRuleRate = dashboardRows.length ? Math.round((goldRuleCount / dashboardRows.length) * 100) : 0;
 
-    return { regionalData, tipoData, fotoData, dateData, topEncarregados, taxaConformidade, naoEnviadas };
-  }, [rows, totals]);
+    return { regionalData, tipoData, fotoData, dateData, topEncarregados, taxaConformidade, naoEnviadas, naoConforme, goldRuleCount, goldRuleRate };
+  }, [dashboardRows]);
 
   const ruleCounts = useMemo(() => {
     const counts = {};
@@ -682,7 +692,13 @@ export default function App() {
       )}
 
       {view === "dashboard" && (
-        <DashboardView dash={dash} totals={totals} rowsCount={rows.length} />
+        <DashboardView
+          dash={dash}
+          rowsCount={dashboardRows.length}
+          monthOptions={monthOptions}
+          dashboardMonth={dashboardMonth}
+          setDashboardMonth={setDashboardMonth}
+        />
       )}
       {view === "regras" && (
         <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 24, marginBottom: 28 }}>
@@ -822,7 +838,7 @@ export default function App() {
   );
 }
 
-function DashboardView({ dash, totals, rowsCount }) {
+function DashboardView({ dash, rowsCount, monthOptions, dashboardMonth, setDashboardMonth }) {
   if (rowsCount === 0) {
     return (
       <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: "60px 24px", textAlign: "center", color: "#6B7580" }}>
@@ -836,6 +852,29 @@ function DashboardView({ dash, totals, rowsCount }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "#6B7580", textTransform: "uppercase", letterSpacing: "0.08em" }}>Filtrar mês</span>
+          <select
+            value={dashboardMonth}
+            onChange={(e) => setDashboardMonth(e.target.value)}
+            className="field-input"
+            style={{ maxWidth: 180 }}
+          >
+            <option value="all">Todos os meses</option>
+            {monthOptions.map((month) => (
+              <option key={month} value={month}>{`${month.slice(5)}/${month.slice(0, 4)}`}</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 170 }}>
+            <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Regras de Ouro</div>
+            <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#E8930C" }}>{dash.goldRuleCount}</div>
+            <div style={{ fontSize: 11, color: "#8A93A0" }}>{dash.goldRuleRate}% dos registros</div>
+          </div>
+        </div>
+      </div>
       {/* KPI row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
         <div style={cardStyle}>
