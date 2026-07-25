@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import {
   Zap, Plus, Trash2, Download, Camera, CheckCircle2, XCircle,
@@ -37,6 +37,23 @@ export default function App() {
   const [form, setForm] = useState(EMPTY);
   const [editingId, setEditingId] = useState(null);
   const [filter, setFilter] = useState("");
+  const [monthFilter, setMonthFilter] = useState("all");
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("indicaServicosRows");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setRows(parsed);
+      } catch (error) {
+        console.warn("Falha ao carregar histórico de registros:", error);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("indicaServicosRows", JSON.stringify(rows));
+  }, [rows]);
 
   const update = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 
@@ -73,19 +90,37 @@ export default function App() {
     setForm(EMPTY);
   };
 
+  const monthOptions = useMemo(() => {
+    const months = new Set();
+    rows.forEach((r) => {
+      if (r.data && r.data.length >= 7) months.add(r.data.slice(0, 7));
+    });
+    return Array.from(months).sort();
+  }, [rows]);
+
+  const formatMonthLabel = (value) => {
+    if (!value || value === "all") return "Todos os meses";
+    const [year, month] = value.split("-");
+    return `${month}/${year}`;
+  };
+
   const filtered = useMemo(() => {
-    if (!filter.trim()) return rows;
+    let subset = rows;
+    if (monthFilter !== "all") {
+      subset = subset.filter((r) => r.data && r.data.slice(0, 7) === monthFilter);
+    }
+    if (!filter.trim()) return subset;
     const q = filter.toLowerCase();
-    return rows.filter((r) =>
+    return subset.filter((r) =>
       [r.os, r.encarregado, r.regional, r.tipoServico, r.processo]
         .join(" ")
         .toLowerCase()
         .includes(q)
     );
-  }, [rows, filter]);
+  }, [rows, filter, monthFilter]);
 
   const exportXlsx = () => {
-    const data = rows.map((r) => ({
+    const data = filtered.map((r) => ({
       "Data": r.data,
       "Nome do Encarregado": r.encarregado,
       "OS": r.os,
@@ -106,7 +141,8 @@ export default function App() {
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Registros");
-    XLSX.writeFile(wb, `registros_os_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const suffix = monthFilter === "all" ? new Date().toISOString().slice(0, 10) : `${monthFilter}-historic`;
+    XLSX.writeFile(wb, `registros_os_${suffix}.xlsx`);
   };
 
   const totals = useMemo(() => {
@@ -370,19 +406,31 @@ export default function App() {
         {/* Table */}
         <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, overflow: "hidden" }}>
           <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #2E3540" }}>
-            <input
-              type="text"
-              placeholder="Filtrar por OS, encarregado, regional, processo..."
-              className="field-input"
-              style={{ maxWidth: 340 }}
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            />
-            <button className="btn-primary" onClick={exportXlsx} disabled={rows.length === 0}>
-              <Download size={15} /> Exportar planilha
-            </button>
-          </div>
-
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <input
+                  type="text"
+                  placeholder="Filtrar por OS, encarregado, regional, processo..."
+                  className="field-input"
+                  style={{ maxWidth: 340 }}
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                />
+                <select
+                  value={monthFilter}
+                  onChange={(e) => setMonthFilter(e.target.value)}
+                  className="field-input"
+                  style={{ maxWidth: 180 }}
+                >
+                  <option value="all">Todos os meses</option>
+                  {monthOptions.map((month) => (
+                    <option key={month} value={month}>{formatMonthLabel(month)}</option>
+                  ))}
+                </select>
+              </div>
+              <button className="btn-primary" onClick={exportXlsx} disabled={filtered.length === 0}>
+                <Download size={15} /> Exportar planilha
+              </button>
+            </div>
           <div style={{ overflowX: "auto" }}>
             <table>
               <thead>
