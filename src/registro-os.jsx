@@ -29,8 +29,8 @@ const EMPTY = {
     seccionamento: false,
     bloqueio: false,
     atestar: false,
-    inspecionar: false,
     epi: false,
+    protegerEquipamentosEnergizados: false,
   },
 };
 
@@ -47,9 +47,20 @@ const RULES_DE_OURO = {
   seccionamento: "Seccionamento",
   bloqueio: "Bloqueio de energia",
   atestar: "Atestar ausência de tensão",
-  inspecionar: "Inspecionar antes de religar",
+  protegerEquipamentosEnergizados: "Proteger equipamentos energizados",
   epi: "Uso de EPI adequado",
 };
+
+const RULE_IMAGES = {
+  desligamentoRede: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%23212A30'/><path d='M30 40h60v10H30zM30 60h50v10H30zM30 80h30v10H30z' fill='%23E8930C'/><circle cx='90' cy='70' r='10' fill='%23E8930C'/></svg>`,
+  seccionamento: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%23212A30'/><path d='M35 30l25 30-25 30' stroke='%23E8930C' stroke-width='10' fill='none'/><path d='M85 30l-25 30 25 30' stroke='%23E8930C' stroke-width='10' fill='none'/></svg>`,
+  bloqueio: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%23212A30'/><rect x='33' y='55' width='54' height='30' rx='6' fill='%23E8930C'/><path d='M48 55v-15a12 12 0 1 1 24 0v15' stroke='%2314181C' stroke-width='10' fill='none'/><circle cx='89' cy='70' r='5' fill='%2314181C'/></svg>`,
+  atestar: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%23212A30'/><path d='M30 70l20 18 40-52' stroke='%23E8930C' stroke-width='10' fill='none'/></svg>`,
+  protegerEquipamentosEnergizados: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%23212A30'/><rect x='35' y='45' width='50' height='30' rx='6' fill='%23E8930C'/><path d='M50 55h20M50 65h20M50 75h12' stroke='%2314181C' stroke-width='6' fill='none'/><circle cx='60' cy='35' r='12' fill='%23E8930C'/></svg>`,
+  epi: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%23212A30'/><path d='M38 80c0-25 22-32 22-32s22 7 22 32v10H38z' fill='%23E8930C'/><path d='M52 84h16M52 92h16' stroke='%2314181C' stroke-width='6' fill='none'/></svg>`,
+};
+
+const getRuleImage = (key) => RULE_IMAGES[key] || "";
 
 export default function App() { 
   const [view, setView] = useState("registro"); // "registro" | "dashboard" | "regras"
@@ -168,24 +179,28 @@ export default function App() {
   }, [rows, filter, monthFilter]);
 
   const exportXlsx = () => {
-    const data = filtered.map((r) => ({
-      "Data": r.data,
-      "Nome do Encarregado": r.encarregado,
-      "OS": r.os,
-      "Tipo de Serviço": r.tipoServico,
-      "Regional": r.regional,
-      "Observação": r.observacao,
-      "Não conformidade": r.naoConformidade,
-      "Regras de Ouro": Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]).join("; "),
-      "Arquivos": r.arquivos?.map((f) => f.name).join(", "),
-      "Conforme": r.conformidade === "Conforme" ? "X" : "",
-      "Não conforme": r.conformidade === "Não conforme" ? "X" : "",
-      "Descrição da Não Conformidade": r.conformidade === "Não conforme" ? r.descNaoConformidade : "",
-      "Processo": r.processo,
-      "Matrícula do Eletricista Líder": r.matriculaLider,
-      "Matrícula do Eletricista": r.matriculaEletricista,
-      "Registro de Foto": r.registroFoto,
-    }));
+    const data = filtered.map((r) => {
+      const selectedRules = Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]);
+      const allRulesSelected = Object.keys(RULES_DE_OURO).every((key) => r.regrasOuro?.[key]);
+      return {
+        "Data": r.data,
+        "Nome do Encarregado": r.encarregado,
+        "OS": r.os,
+        "Tipo de Serviço": r.tipoServico,
+        "Regional": r.regional,
+        "Observação": r.observacao,
+        "Não conformidade": r.naoConformidade,
+        "Regras de Ouro": selectedRules.join("; "),
+        "Arquivos": r.arquivos?.map((f) => f.name).join(", "),
+        "Conforme": allRulesSelected ? "X" : "",
+        "Não conforme": allRulesSelected ? "" : "X",
+        "Descrição da Não Conformidade": allRulesSelected ? "" : (r.conformidade === "Não conforme" ? r.descNaoConformidade : ""),
+        "Processo": r.processo,
+        "Matrícula do Eletricista Líder": r.matriculaLider,
+        "Matrícula do Eletricista": r.matriculaEletricista,
+        "Registro de Foto": r.registroFoto,
+      };
+    });
     const ws = XLSX.utils.json_to_sheet(data);
     ws["!cols"] = [
       { wch: 12 }, { wch: 22 }, { wch: 12 }, { wch: 20 }, { wch: 14 },
@@ -412,17 +427,20 @@ export default function App() {
             </div>
             <div>
               <label className="field-label">Regras de Ouro (NR10)</label>
-              <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "grid", gap: 12 }}>
                 {Object.entries(RULES_DE_OURO).map(([key, label]) => (
-                  <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 10px", borderRadius: 6, border: "1px solid #2E3540", background: form.regrasOuro[key] ? "#1F2E1F" : "#14181C" }}>
-                    <input
-                      type="checkbox"
-                      checked={form.regrasOuro[key]}
-                      onChange={(e) => update("regrasOuro", { ...form.regrasOuro, [key]: e.target.checked })}
-                      style={{ width: 16, height: 16 }}
-                    />
-                    <span style={{ fontSize: 13, color: "#E8EBEE" }}>{label}</span>
-                  </label>
+                  <div key={key} style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 14, alignItems: "center", padding: "12px 14px", background: form.regrasOuro[key] ? "#1F2E1F" : "#14181C", borderRadius: 8, border: "1px solid #2E3540" }}>
+                    <img src={getRuleImage(key)} alt={label} style={{ width: 56, height: 56, borderRadius: 12, objectFit: "cover", background: "#0F1519" }} />
+                    <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", margin: 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={form.regrasOuro[key]}
+                        onChange={(e) => update("regrasOuro", { ...form.regrasOuro, [key]: e.target.checked })}
+                        style={{ width: 16, height: 16 }}
+                      />
+                      <span style={{ fontSize: 13, color: "#E8EBEE" }}>{label}</span>
+                    </label>
+                  </div>
                 ))}
               </div>
             </div>
