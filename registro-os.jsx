@@ -1,0 +1,577 @@
+import React, { useState, useMemo } from "react";
+import * as XLSX from "xlsx";
+import {
+  Zap, Plus, Trash2, Download, Camera, CheckCircle2, XCircle,
+  LayoutGrid, ClipboardList, AlertTriangle,
+} from "lucide-react";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  PieChart, Pie, Cell, LineChart, Line, Legend,
+} from "recharts";
+
+const EMPTY = {
+  data: "",
+  encarregado: "",
+  os: "",
+  tipoServico: "",
+  regional: "",
+  conformidade: "Conforme",
+  descNaoConformidade: "",
+  processo: "",
+  matriculaLider: "",
+  matriculaEletricista: "",
+  registroFoto: "Enviado",
+};
+
+const FOTO_STYLES = {
+  "Enviado": { bg: "#EAF4EE", fg: "#1F6B3A", dot: "#2F9E52" },
+  "Enviado com Não conformidade": { bg: "#FBF0E4", fg: "#9A5B14", dot: "#E8930C" },
+  "Não enviado": { bg: "#FBEAEA", fg: "#A22E2E", dot: "#D64545" },
+};
+
+const CHART_COLORS = { conforme: "#2F9E52", naoConforme: "#D64545", accent: "#E8930C", accent2: "#4A9BD9" };
+
+export default function App() {
+  const [view, setView] = useState("registro"); // "registro" | "dashboard"
+  const [rows, setRows] = useState([]);
+  const [form, setForm] = useState(EMPTY);
+  const [editingId, setEditingId] = useState(null);
+  const [filter, setFilter] = useState("");
+
+  const update = (field, value) => setForm((f) => ({ ...f, [field]: value }));
+
+  const requiredOk =
+    form.data && form.encarregado && form.os &&
+    (form.conformidade !== "Não conforme" || form.descNaoConformidade.trim().length > 0);
+
+  const handleSubmit = () => {
+    if (!requiredOk) return;
+    if (editingId) {
+      setRows((rs) => rs.map((r) => (r.id === editingId ? { ...form, id: editingId } : r)));
+      setEditingId(null);
+    } else {
+      setRows((rs) => [...rs, { ...form, id: crypto.randomUUID() }]);
+    }
+    setForm(EMPTY);
+  };
+
+  const handleEdit = (row) => {
+    setForm(row);
+    setEditingId(row.id);
+  };
+
+  const handleDelete = (id) => {
+    setRows((rs) => rs.filter((r) => r.id !== id));
+    if (editingId === id) {
+      setEditingId(null);
+      setForm(EMPTY);
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setForm(EMPTY);
+  };
+
+  const filtered = useMemo(() => {
+    if (!filter.trim()) return rows;
+    const q = filter.toLowerCase();
+    return rows.filter((r) =>
+      [r.os, r.encarregado, r.regional, r.tipoServico, r.processo]
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [rows, filter]);
+
+  const exportXlsx = () => {
+    const data = rows.map((r) => ({
+      "Data": r.data,
+      "Nome do Encarregado": r.encarregado,
+      "OS": r.os,
+      "Tipo de Serviço": r.tipoServico,
+      "Regional": r.regional,
+      "Conforme": r.conformidade === "Conforme" ? "X" : "",
+      "Não conforme": r.conformidade === "Não conforme" ? "X" : "",
+      "Descrição da Não Conformidade": r.conformidade === "Não conforme" ? r.descNaoConformidade : "",
+      "Processo": r.processo,
+      "Matrícula do Eletricista Líder": r.matriculaLider,
+      "Matrícula do Eletricista": r.matriculaEletricista,
+      "Registro de Foto": r.registroFoto,
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws["!cols"] = [
+      { wch: 12 }, { wch: 22 }, { wch: 12 }, { wch: 20 }, { wch: 14 },
+      { wch: 10 }, { wch: 12 }, { wch: 34 }, { wch: 16 }, { wch: 24 }, { wch: 20 }, { wch: 26 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Registros");
+    XLSX.writeFile(wb, `registros_os_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const totals = useMemo(() => {
+    const conforme = rows.filter((r) => r.conformidade === "Conforme").length;
+    const naoConforme = rows.length - conforme;
+    return { conforme, naoConforme };
+  }, [rows]);
+
+  const dash = useMemo(() => {
+    const byRegional = {};
+    const byTipo = {};
+    const byFoto = { "Enviado": 0, "Enviado com Não conformidade": 0, "Não enviado": 0 };
+    const byDate = {};
+    const byEncarregado = {};
+
+    rows.forEach((r) => {
+      const reg = r.regional || "Não informado";
+      if (!byRegional[reg]) byRegional[reg] = { name: reg, Conforme: 0, "Não conforme": 0 };
+      byRegional[reg][r.conformidade] += 1;
+
+      const tipo = r.tipoServico || "Não informado";
+      byTipo[tipo] = (byTipo[tipo] || 0) + 1;
+
+      byFoto[r.registroFoto] = (byFoto[r.registroFoto] || 0) + 1;
+
+      if (r.data) {
+        if (!byDate[r.data]) byDate[r.data] = { date: r.data, Conforme: 0, "Não conforme": 0 };
+        byDate[r.data][r.conformidade] += 1;
+      }
+
+      const enc = r.encarregado || "Não informado";
+      byEncarregado[enc] = (byEncarregado[enc] || 0) + 1;
+    });
+
+    const regionalData = Object.values(byRegional);
+    const tipoData = Object.entries(byTipo).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+    const fotoData = Object.entries(byFoto).map(([name, value]) => ({ name, value }));
+    const dateData = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+    const topEncarregados = Object.entries(byEncarregado).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
+
+    const taxaConformidade = rows.length ? Math.round((totals.conforme / rows.length) * 100) : 0;
+    const naoEnviadas = rows.filter((r) => r.registroFoto === "Não enviado").length;
+
+    return { regionalData, tipoData, fotoData, dateData, topEncarregados, taxaConformidade, naoEnviadas };
+  }, [rows, totals]);
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#14181C", fontFamily: "'IBM Plex Mono', ui-monospace, monospace", color: "#E8EBEE", padding: "0" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap');
+        .disp { font-family: 'Barlow Condensed', sans-serif; }
+        input, select { font-family: 'IBM Plex Mono', monospace; }
+        ::placeholder { color: #6B7580; }
+        .field-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #8A93A0; margin-bottom: 6px; display: block; font-weight: 600; }
+        .field-input { width: 100%; background: #1C2126; border: 1px solid #2E3540; color: #E8EBEE; padding: 10px 12px; border-radius: 4px; font-size: 14px; outline: none; transition: border-color 0.15s; box-sizing: border-box; }
+        .field-input:focus { border-color: #E8930C; }
+        .radio-pill { cursor: pointer; padding: 9px 14px; border-radius: 4px; border: 1px solid #2E3540; font-size: 13px; font-weight: 600; text-align: center; transition: all 0.15s; user-select: none; }
+        .btn-primary { background: #E8930C; color: #14181C; border: none; padding: 11px 20px; border-radius: 4px; font-weight: 700; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: filter 0.15s; }
+        .btn-primary:hover { filter: brightness(1.1); }
+        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-ghost { background: transparent; color: #8A93A0; border: 1px solid #2E3540; padding: 11px 16px; border-radius: 4px; font-weight: 600; font-size: 13px; cursor: pointer; }
+        .btn-ghost:hover { color: #E8EBEE; border-color: #4A5462; }
+        table { border-collapse: collapse; width: 100%; }
+        th { text-align: left; font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; color: #6B7580; padding: 10px 12px; border-bottom: 1px solid #2E3540; font-weight: 600; white-space: nowrap; }
+        td { padding: 12px; border-bottom: 1px solid #1E242A; font-size: 13px; vertical-align: middle; }
+        tr:hover td { background: #1A1F24; }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ borderBottom: "1px solid #2E3540", padding: "20px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#171B20" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 34, height: 34, background: "#E8930C", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Zap size={19} color="#14181C" strokeWidth={2.5} />
+          </div>
+          <div>
+            <div className="disp" style={{ fontSize: 22, fontWeight: 800, lineHeight: 1 }}>REGISTRO DE OS</div>
+            <div style={{ fontSize: 11, color: "#6B7580", letterSpacing: "0.04em" }}>Serviços elétricos · controle de conformidade</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+          <div style={{ display: "flex", gap: 6, background: "#1C2126", padding: 4, borderRadius: 6, border: "1px solid #2E3540" }}>
+            <button
+              onClick={() => setView("registro")}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer",
+                padding: "8px 14px", borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: "0.02em",
+                background: view === "registro" ? "#E8930C" : "transparent",
+                color: view === "registro" ? "#14181C" : "#8A93A0",
+              }}
+            >
+              <ClipboardList size={14} /> REGISTRO
+            </button>
+            <button
+              onClick={() => setView("dashboard")}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer",
+                padding: "8px 14px", borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: "0.02em",
+                background: view === "dashboard" ? "#E8930C" : "transparent",
+                color: view === "dashboard" ? "#14181C" : "#8A93A0",
+              }}
+            >
+              <LayoutGrid size={14} /> DASHBOARD
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 24 }}>
+            <div style={{ textAlign: "right" }}>
+              <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#E8EBEE", lineHeight: 1 }}>{rows.length}</div>
+              <div style={{ fontSize: 10, color: "#6B7580", textTransform: "uppercase", letterSpacing: "0.06em" }}>Registros</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#2F9E52", lineHeight: 1 }}>{totals.conforme}</div>
+              <div style={{ fontSize: 10, color: "#6B7580", textTransform: "uppercase", letterSpacing: "0.06em" }}>Conformes</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#D64545", lineHeight: 1 }}>{totals.naoConforme}</div>
+              <div style={{ fontSize: 10, color: "#6B7580", textTransform: "uppercase", letterSpacing: "0.06em" }}>Não conformes</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: "28px 32px", maxWidth: 1280, margin: "0 auto" }}>
+      {view === "registro" && (
+      <>
+        {/* Form */}
+        <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 24, marginBottom: 28 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+            <div className="disp" style={{ fontSize: 17, fontWeight: 700, letterSpacing: "0.01em" }}>
+              {editingId ? "EDITAR REGISTRO" : "NOVO REGISTRO"}
+            </div>
+            {editingId && (
+              <button className="btn-ghost" onClick={cancelEdit}>Cancelar edição</button>
+            )}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
+            <div>
+              <label className="field-label">Data *</label>
+              <input type="date" className="field-input" value={form.data} onChange={(e) => update("data", e.target.value)} />
+            </div>
+            <div>
+              <label className="field-label">Nome do Encarregado *</label>
+              <input type="text" className="field-input" placeholder="Ex: João Silva" value={form.encarregado} onChange={(e) => update("encarregado", e.target.value)} />
+            </div>
+            <div>
+              <label className="field-label">OS *</label>
+              <input type="text" className="field-input" placeholder="Nº da OS" value={form.os} onChange={(e) => update("os", e.target.value)} />
+            </div>
+            <div>
+              <label className="field-label">Tipo de Serviço</label>
+              <input type="text" className="field-input" placeholder="Ex: Manutenção preventiva" value={form.tipoServico} onChange={(e) => update("tipoServico", e.target.value)} />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
+            <div>
+              <label className="field-label">Regional</label>
+              <input type="text" className="field-input" placeholder="Ex: Baixada" value={form.regional} onChange={(e) => update("regional", e.target.value)} />
+            </div>
+            <div>
+              <label className="field-label">Processo</label>
+              <input type="text" className="field-input" placeholder="Ex: Poda / Inspeção" value={form.processo} onChange={(e) => update("processo", e.target.value)} />
+            </div>
+            <div>
+              <label className="field-label">Matrícula Eletricista Líder</label>
+              <input type="text" className="field-input" placeholder="Matrícula" value={form.matriculaLider} onChange={(e) => update("matriculaLider", e.target.value)} />
+            </div>
+            <div>
+              <label className="field-label">Matrícula Eletricista</label>
+              <input type="text" className="field-input" placeholder="Matrícula" value={form.matriculaEletricista} onChange={(e) => update("matriculaEletricista", e.target.value)} />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 24, marginBottom: 20 }}>
+            <div>
+              <label className="field-label">Conformidade</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div
+                  className="radio-pill"
+                  onClick={() => setForm((f) => ({ ...f, conformidade: "Conforme", descNaoConformidade: "" }))}
+                  style={{
+                    background: form.conformidade === "Conforme" ? "#1F6B3A" : "#1C2126",
+                    borderColor: form.conformidade === "Conforme" ? "#2F9E52" : "#2E3540",
+                    color: form.conformidade === "Conforme" ? "#EAF4EE" : "#8A93A0",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  }}
+                >
+                  <CheckCircle2 size={14} /> Conforme
+                </div>
+                <div
+                  className="radio-pill"
+                  onClick={() => update("conformidade", "Não conforme")}
+                  style={{
+                    background: form.conformidade === "Não conforme" ? "#7A2626" : "#1C2126",
+                    borderColor: form.conformidade === "Não conforme" ? "#D64545" : "#2E3540",
+                    color: form.conformidade === "Não conforme" ? "#FBEAEA" : "#8A93A0",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  }}
+                >
+                  <XCircle size={14} /> Não conforme
+                </div>
+              </div>
+              {form.conformidade === "Não conforme" && (
+                <div style={{ marginTop: 10 }}>
+                  <label className="field-label" style={{ color: "#E8930C" }}>
+                    <AlertTriangle size={11} style={{ display: "inline", marginRight: 4, verticalAlign: -1 }} />
+                    Descreva a não conformidade *
+                  </label>
+                  <textarea
+                    className="field-input"
+                    style={{ resize: "vertical", minHeight: 54, fontFamily: "inherit" }}
+                    placeholder="Ex: EPI incompleto, procedimento de bloqueio não seguido..."
+                    value={form.descNaoConformidade}
+                    onChange={(e) => update("descNaoConformidade", e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="field-label"><Camera size={11} style={{ display: "inline", marginRight: 4, verticalAlign: -1 }} />Registro de Foto</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                {Object.keys(FOTO_STYLES).map((opt) => {
+                  const active = form.registroFoto === opt;
+                  const s = FOTO_STYLES[opt];
+                  return (
+                    <div
+                      key={opt}
+                      className="radio-pill"
+                      onClick={() => update("registroFoto", opt)}
+                      style={{
+                        background: active ? s.bg : "#1C2126",
+                        borderColor: active ? s.dot : "#2E3540",
+                        color: active ? s.fg : "#8A93A0",
+                        fontSize: 12,
+                      }}
+                    >
+                      {opt}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <button className="btn-primary" disabled={!requiredOk} onClick={handleSubmit}>
+              <Plus size={16} /> {editingId ? "Salvar alterações" : "Adicionar registro"}
+            </button>
+            {!requiredOk && (
+              <span style={{ fontSize: 12, color: "#6B7580", alignSelf: "center" }}>
+                {form.conformidade === "Não conforme" && !form.descNaoConformidade.trim()
+                  ? "Descreva a não conformidade para adicionar."
+                  : "Preencha Data, Encarregado e OS para adicionar."}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Table */}
+        <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, overflow: "hidden" }}>
+          <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #2E3540" }}>
+            <input
+              type="text"
+              placeholder="Filtrar por OS, encarregado, regional, processo..."
+              className="field-input"
+              style={{ maxWidth: 340 }}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+            <button className="btn-primary" onClick={exportXlsx} disabled={rows.length === 0}>
+              <Download size={15} /> Exportar planilha
+            </button>
+          </div>
+
+          <div style={{ overflowX: "auto" }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Encarregado</th>
+                  <th>OS</th>
+                  <th>Tipo de Serviço</th>
+                  <th>Regional</th>
+                  <th>Conformidade</th>
+                  <th>Processo</th>
+                  <th>Mat. Líder</th>
+                  <th>Mat. Eletricista</th>
+                  <th>Foto</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={11} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
+                      {rows.length === 0 ? "Nenhum registro ainda. Preencha o formulário acima para começar." : "Nenhum resultado para esse filtro."}
+                    </td>
+                  </tr>
+                )}
+                {filtered.map((r) => {
+                  const fs = FOTO_STYLES[r.registroFoto];
+                  return (
+                    <tr key={r.id}>
+                      <td>{r.data}</td>
+                      <td>{r.encarregado}</td>
+                      <td style={{ color: "#E8930C", fontWeight: 600 }}>{r.os}</td>
+                      <td>{r.tipoServico || "—"}</td>
+                      <td>{r.regional || "—"}</td>
+                      <td>
+                        <span
+                          title={r.conformidade === "Não conforme" ? r.descNaoConformidade : undefined}
+                          style={{
+                            fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20,
+                            background: r.conformidade === "Conforme" ? "#1F6B3A" : "#7A2626",
+                            color: r.conformidade === "Conforme" ? "#EAF4EE" : "#FBEAEA",
+                            cursor: r.conformidade === "Não conforme" ? "help" : "default",
+                          }}
+                        >
+                          {r.conformidade}{r.conformidade === "Não conforme" ? " ⓘ" : ""}
+                        </span>
+                      </td>
+                      <td>{r.processo || "—"}</td>
+                      <td>{r.matriculaLider || "—"}</td>
+                      <td>{r.matriculaEletricista || "—"}</td>
+                      <td>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: fs.bg, color: fs.fg }}>
+                          {r.registroFoto}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          <button
+                            onClick={() => handleEdit(r)}
+                            style={{ background: "none", border: "1px solid #2E3540", color: "#8A93A0", borderRadius: 4, padding: "5px 9px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDelete(r.id)}
+                            style={{ background: "none", border: "1px solid #2E3540", color: "#D64545", borderRadius: 4, padding: "5px 8px", cursor: "pointer", display: "flex", alignItems: "center" }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </>
+      )}
+
+      {view === "dashboard" && (
+        <DashboardView dash={dash} totals={totals} rowsCount={rows.length} />
+      )}
+      </div>
+    </div>
+  );
+}
+
+function DashboardView({ dash, totals, rowsCount }) {
+  if (rowsCount === 0) {
+    return (
+      <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: "60px 24px", textAlign: "center", color: "#6B7580" }}>
+        Nenhum dado ainda. Adicione registros na aba Registro para ver o dashboard.
+      </div>
+    );
+  }
+
+  const cardStyle = { background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 20 };
+  const titleStyle = { fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#8A93A0", marginBottom: 16 };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* KPI row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+        <div style={cardStyle}>
+          <div style={titleStyle}>Taxa de conformidade</div>
+          <div className="disp" style={{ fontSize: 38, fontWeight: 800, color: dash.taxaConformidade >= 80 ? "#2F9E52" : dash.taxaConformidade >= 50 ? "#E8930C" : "#D64545" }}>
+            {dash.taxaConformidade}%
+          </div>
+        </div>
+        <div style={cardStyle}>
+          <div style={titleStyle}>Total de registros</div>
+          <div className="disp" style={{ fontSize: 38, fontWeight: 800, color: "#E8EBEE" }}>{rowsCount}</div>
+        </div>
+        <div style={cardStyle}>
+          <div style={titleStyle}>Não conformidades</div>
+          <div className="disp" style={{ fontSize: 38, fontWeight: 800, color: "#D64545" }}>{totals.naoConforme}</div>
+        </div>
+        <div style={cardStyle}>
+          <div style={titleStyle}>Fotos não enviadas</div>
+          <div className="disp" style={{ fontSize: 38, fontWeight: 800, color: dash.naoEnviadas > 0 ? "#E8930C" : "#2F9E52" }}>{dash.naoEnviadas}</div>
+        </div>
+      </div>
+
+      {/* Regional bar + Foto pie */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 16 }}>
+        <div style={cardStyle}>
+          <div style={titleStyle}>Conformidade por regional</div>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={dash.regionalData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#2E3540" vertical={false} />
+              <XAxis dataKey="name" stroke="#6B7580" fontSize={11} tickLine={false} axisLine={{ stroke: "#2E3540" }} />
+              <YAxis stroke="#6B7580" fontSize={11} tickLine={false} axisLine={{ stroke: "#2E3540" }} allowDecimals={false} />
+              <Tooltip contentStyle={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 6, fontSize: 12 }} labelStyle={{ color: "#E8EBEE" }} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="Conforme" stackId="a" fill={CHART_COLORS.conforme} radius={[0, 0, 0, 0]} />
+              <Bar dataKey="Não conforme" stackId="a" fill={CHART_COLORS.naoConforme} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={cardStyle}>
+          <div style={titleStyle}>Registro de foto</div>
+          <ResponsiveContainer width="100%" height={260}>
+            <PieChart>
+              <Pie data={dash.fotoData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={3}>
+                {dash.fotoData.map((entry, i) => {
+                  const colors = { "Enviado": CHART_COLORS.conforme, "Enviado com Não conformidade": CHART_COLORS.accent, "Não enviado": CHART_COLORS.naoConforme };
+                  return <Cell key={i} fill={colors[entry.name]} />;
+                })}
+              </Pie>
+              <Tooltip contentStyle={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 6, fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 11 }} layout="vertical" verticalAlign="middle" align="right" />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Timeline + Tipo servico + top encarregados */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
+        <div style={cardStyle}>
+          <div style={titleStyle}>Evolução por data</div>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={dash.dateData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#2E3540" vertical={false} />
+              <XAxis dataKey="date" stroke="#6B7580" fontSize={11} tickLine={false} axisLine={{ stroke: "#2E3540" }} />
+              <YAxis stroke="#6B7580" fontSize={11} tickLine={false} axisLine={{ stroke: "#2E3540" }} allowDecimals={false} />
+              <Tooltip contentStyle={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 6, fontSize: 12 }} labelStyle={{ color: "#E8EBEE" }} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line type="monotone" dataKey="Conforme" stroke={CHART_COLORS.conforme} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="Não conforme" stroke={CHART_COLORS.naoConforme} strokeWidth={2} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={cardStyle}>
+          <div style={titleStyle}>Top encarregados (nº de OS)</div>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={dash.topEncarregados} layout="vertical" margin={{ left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#2E3540" horizontal={false} />
+              <XAxis type="number" stroke="#6B7580" fontSize={11} tickLine={false} axisLine={{ stroke: "#2E3540" }} allowDecimals={false} />
+              <YAxis dataKey="name" type="category" stroke="#6B7580" fontSize={11} tickLine={false} axisLine={{ stroke: "#2E3540" }} width={100} />
+              <Tooltip contentStyle={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 6, fontSize: 12 }} />
+              <Bar dataKey="value" fill={CHART_COLORS.accent2} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+}
