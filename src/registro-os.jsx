@@ -21,6 +21,16 @@ const EMPTY = {
   matriculaLider: "",
   matriculaEletricista: "",
   registroFoto: "Enviado",
+  observacao: "",
+  naoConformidade: "",
+  arquivos: [],
+  regrasOuro: {
+    isolar: false,
+    desligarBloquear: false,
+    atestar: false,
+    inspecionar: false,
+    epi: false,
+  },
 };
 
 const FOTO_STYLES = {
@@ -31,8 +41,16 @@ const FOTO_STYLES = {
 
 const CHART_COLORS = { conforme: "#2F9E52", naoConforme: "#D64545", accent: "#E8930C", accent2: "#4A9BD9" };
 
-export default function App() {
-  const [view, setView] = useState("registro"); // "registro" | "dashboard"
+const RULES_DE_OURO = {
+  isolar: "Isolar a área de risco",
+  desligarBloquear: "Desligar e bloquear energia",
+  atestar: "Atestar a ausência de tensão",
+  inspecionar: "Inspecionar antes de religar",
+  epi: "Usar EPI adequado",
+};
+
+export default function App() { 
+  const [view, setView] = useState("registro"); // "registro" | "dashboard" | "exportacao"
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [editingId, setEditingId] = useState(null);
@@ -90,6 +108,34 @@ export default function App() {
     setForm(EMPTY);
   };
 
+  const handleFilesUpload = async (event) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+    const readFiles = await Promise.all(
+      files.map((file) =>
+        new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve({
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            content: reader.result,
+          });
+          reader.readAsDataURL(file);
+        })
+      )
+    );
+    update("arquivos", [...form.arquivos, ...readFiles]);
+    event.target.value = "";
+  };
+
+  const handleRemoveFile = (index) => {
+    setForm((f) => ({
+      ...f,
+      arquivos: f.arquivos.filter((_, i) => i !== index),
+    }));
+  };
+
   const monthOptions = useMemo(() => {
     const months = new Set();
     rows.forEach((r) => {
@@ -126,6 +172,10 @@ export default function App() {
       "OS": r.os,
       "Tipo de Serviço": r.tipoServico,
       "Regional": r.regional,
+      "Observação": r.observacao,
+      "Não conformidade": r.naoConformidade,
+      "Regras de Ouro": Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]).join("; "),
+      "Arquivos": r.arquivos?.map((f) => f.name).join(", "),
       "Conforme": r.conformidade === "Conforme" ? "X" : "",
       "Não conforme": r.conformidade === "Não conforme" ? "X" : "",
       "Descrição da Não Conformidade": r.conformidade === "Não conforme" ? r.descNaoConformidade : "",
@@ -137,13 +187,14 @@ export default function App() {
     const ws = XLSX.utils.json_to_sheet(data);
     ws["!cols"] = [
       { wch: 12 }, { wch: 22 }, { wch: 12 }, { wch: 20 }, { wch: 14 },
-      { wch: 10 }, { wch: 12 }, { wch: 34 }, { wch: 16 }, { wch: 24 }, { wch: 20 }, { wch: 26 },
+      { wch: 20 }, { wch: 20 }, { wch: 32 }, { wch: 26 }, { wch: 10 },
+      { wch: 12 }, { wch: 34 }, { wch: 16 }, { wch: 24 }, { wch: 20 }, { wch: 26 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Registros");
     const suffix = monthFilter === "all" ? new Date().toISOString().slice(0, 10) : `${monthFilter}-historic`;
     XLSX.writeFile(wb, `registros_os_${suffix}.xlsx`);
-  };
+  }; 
 
   const totals = useMemo(() => {
     const conforme = rows.filter((r) => r.conformidade === "Conforme").length;
@@ -246,6 +297,17 @@ export default function App() {
             >
               <LayoutGrid size={14} /> DASHBOARD
             </button>
+            <button
+              onClick={() => setView("exportacao")}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer",
+                padding: "8px 14px", borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: "0.02em",
+                background: view === "exportacao" ? "#E8930C" : "transparent",
+                color: view === "exportacao" ? "#14181C" : "#8A93A0",
+              }}
+            >
+              <Download size={14} /> EXPORTAÇÃO
+            </button>
           </div>
 
           <div style={{ display: "flex", gap: 24 }}>
@@ -308,12 +370,48 @@ export default function App() {
               <input type="text" className="field-input" placeholder="Ex: Poda / Inspeção" value={form.processo} onChange={(e) => update("processo", e.target.value)} />
             </div>
             <div>
-              <label className="field-label">Matrícula Eletricista Líder</label>
-              <input type="text" className="field-input" placeholder="Matrícula" value={form.matriculaLider} onChange={(e) => update("matriculaLider", e.target.value)} />
+              <label className="field-label">Observação</label>
+              <input type="text" className="field-input" placeholder="Observações adicionais" value={form.observacao} onChange={(e) => update("observacao", e.target.value)} />
             </div>
             <div>
-              <label className="field-label">Matrícula Eletricista</label>
-              <input type="text" className="field-input" placeholder="Matrícula" value={form.matriculaEletricista} onChange={(e) => update("matriculaEletricista", e.target.value)} />
+              <label className="field-label">Não conformidade</label>
+              <input type="text" className="field-input" placeholder="Descreva não conformidade" value={form.naoConformidade} onChange={(e) => update("naoConformidade", e.target.value)} />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 20 }}>
+            <div>
+              <label className="field-label">Arquivos</label>
+              <input type="file" multiple className="field-input" onChange={handleFilesUpload} style={{ padding: 4 }} />
+              {form.arquivos.length > 0 && (
+                <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                  {form.arquivos.map((file, index) => (
+                    <div key={`${file.name}-${index}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#1A1F24", border: "1px solid #2E3540", borderRadius: 6, padding: "8px 10px" }}>
+                      <span style={{ fontSize: 12, color: "#E8EBEE", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{file.name}</span>
+                      <button
+                        onClick={() => handleRemoveFile(index)}
+                        style={{ background: "none", border: "1px solid #2E3540", color: "#D64545", borderRadius: 4, padding: "4px 8px", cursor: "pointer", fontSize: 12 }}
+                      >Remover</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="field-label">Regras de Ouro (NR10)</label>
+              <div style={{ display: "grid", gap: 8 }}>
+                {Object.entries(RULES_DE_OURO).map(([key, label]) => (
+                  <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 10px", borderRadius: 6, border: "1px solid #2E3540", background: form.regrasOuro[key] ? "#1F2E1F" : "#14181C" }}>
+                    <input
+                      type="checkbox"
+                      checked={form.regrasOuro[key]}
+                      onChange={(e) => update("regrasOuro", { ...form.regrasOuro, [key]: e.target.checked })}
+                      style={{ width: 16, height: 16 }}
+                    />
+                    <span style={{ fontSize: 13, color: "#E8EBEE" }}>{label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -427,9 +525,6 @@ export default function App() {
                   ))}
                 </select>
               </div>
-              <button className="btn-primary" onClick={exportXlsx} disabled={filtered.length === 0}>
-                <Download size={15} /> Exportar planilha
-              </button>
             </div>
           <div style={{ overflowX: "auto" }}>
             <table>
@@ -440,10 +535,13 @@ export default function App() {
                   <th>OS</th>
                   <th>Tipo de Serviço</th>
                   <th>Regional</th>
-                  <th>Conformidade</th>
+                  <th>Observação</th>
+                  <th>Não conformidade</th>
                   <th>Processo</th>
                   <th>Mat. Líder</th>
                   <th>Mat. Eletricista</th>
+                  <th>Arquivos</th>
+                  <th>Regras de Ouro</th>
                   <th>Foto</th>
                   <th></th>
                 </tr>
@@ -451,7 +549,7 @@ export default function App() {
               <tbody>
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={11} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
+                  <td colSpan={14} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
                       {rows.length === 0 ? "Nenhum registro ainda. Preencha o formulário acima para começar." : "Nenhum resultado para esse filtro."}
                     </td>
                   </tr>
@@ -478,9 +576,27 @@ export default function App() {
                           {r.conformidade}{r.conformidade === "Não conforme" ? " ⓘ" : ""}
                         </span>
                       </td>
-                      <td>{r.processo || "—"}</td>
+                              <td>{r.processo || "—"}</td>
+                      <td>{r.observacao || "—"}</td>
+                      <td>{r.naoConformidade || "—"}</td>
                       <td>{r.matriculaLider || "—"}</td>
                       <td>{r.matriculaEletricista || "—"}</td>
+                      <td>
+                        <div style={{ display: "grid", gap: 4 }}>
+                          {r.arquivos?.map((file, idx) => (
+                            <span key={`${file.name}-${idx}`} style={{ fontSize: 11, color: "#E8EBEE" }}>{file.name}</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          {Object.entries(r.regrasOuro || {})
+                            .filter(([, value]) => value)
+                            .map(([key]) => (
+                              <span key={key} style={{ fontSize: 11, color: "#8A93A0" }}>{RULES_DE_OURO[key]}</span>
+                            ))}
+                        </div>
+                      </td>
                       <td>
                         <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: fs.bg, color: fs.fg }}>
                           {r.registroFoto}
@@ -514,6 +630,92 @@ export default function App() {
 
       {view === "dashboard" && (
         <DashboardView dash={dash} totals={totals} rowsCount={rows.length} />
+      )}
+      {view === "exportacao" && (
+        <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 24, marginBottom: 28 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+            <div className="disp" style={{ fontSize: 17, fontWeight: 700, letterSpacing: "0.01em" }}>
+              EXPORTAÇÃO DE REGISTROS
+            </div>
+            <button className="btn-primary" onClick={exportXlsx} disabled={filtered.length === 0}>
+              <Download size={16} /> Exportar planilha
+            </button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, marginBottom: 20 }}>
+            <div>
+              <label className="field-label">Pesquisa</label>
+              <input
+                type="text"
+                placeholder="Filtrar por OS, encarregado, regional, processo..."
+                className="field-input"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="field-label">Mês</label>
+              <select
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                className="field-input"
+              >
+                <option value="all">Todos os meses</option>
+                {monthOptions.map((month) => (
+                  <option key={month} value={month}>{formatMonthLabel(month)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Registros</label>
+              <div className="field-input" style={{ display: "flex", alignItems: "center", minHeight: 44, background: "#1C2126", color: "#E8EBEE" }}>
+                {filtered.length} registros selecionados
+              </div>
+            </div>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Encarregado</th>
+                  <th>OS</th>
+                  <th>Tipo de Serviço</th>
+                  <th>Regional</th>
+                  <th>Arquivos</th>
+                  <th>Regras de Ouro</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
+                      {rows.length === 0 ? "Nenhum registro ainda. Preencha o formulário na aba Registro." : "Nenhum resultado para esse filtro."}
+                    </td>
+                  </tr>
+                ) : filtered.map((r) => {
+                  const fs = FOTO_STYLES[r.registroFoto];
+                  return (
+                    <tr key={r.id}>
+                      <td>{r.data}</td>
+                      <td>{r.encarregado}</td>
+                      <td style={{ color: "#E8930C", fontWeight: 600 }}>{r.os}</td>
+                      <td>{r.tipoServico || "—"}</td>
+                      <td>{r.regional || "—"}</td>
+                      <td>{r.arquivos?.map((file) => file.name).join(", ") || "—"}</td>
+                      <td>{Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]).join("; ") || "—"}</td>
+                      <td>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: fs.bg, color: fs.fg }}>
+                          {r.registroFoto}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
       </div>
     </div>
