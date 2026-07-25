@@ -25,8 +25,9 @@ const EMPTY = {
   naoConformidade: "",
   arquivos: [],
   regrasOuro: {
-    isolar: false,
-    desligarBloquear: false,
+    desligamentoRede: false,
+    seccionamento: false,
+    bloqueio: false,
     atestar: false,
     inspecionar: false,
     epi: false,
@@ -42,15 +43,16 @@ const FOTO_STYLES = {
 const CHART_COLORS = { conforme: "#2F9E52", naoConforme: "#D64545", accent: "#E8930C", accent2: "#4A9BD9" };
 
 const RULES_DE_OURO = {
-  isolar: "Isolar a área de risco",
-  desligarBloquear: "Desligar e bloquear energia",
-  atestar: "Atestar a ausência de tensão",
+  desligamentoRede: "Desligamento de rede",
+  seccionamento: "Seccionamento",
+  bloqueio: "Bloqueio de energia",
+  atestar: "Atestar ausência de tensão",
   inspecionar: "Inspecionar antes de religar",
-  epi: "Usar EPI adequado",
+  epi: "Uso de EPI adequado",
 };
 
 export default function App() { 
-  const [view, setView] = useState("registro"); // "registro" | "dashboard" | "exportacao"
+  const [view, setView] = useState("registro"); // "registro" | "dashboard" | "regras"
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [editingId, setEditingId] = useState(null);
@@ -240,6 +242,17 @@ export default function App() {
     return { regionalData, tipoData, fotoData, dateData, topEncarregados, taxaConformidade, naoEnviadas };
   }, [rows, totals]);
 
+  const ruleCounts = useMemo(() => {
+    const counts = {};
+    Object.keys(RULES_DE_OURO).forEach((key) => { counts[key] = 0; });
+    rows.forEach((r) => {
+      Object.entries(r.regrasOuro || {}).forEach(([key, value]) => {
+        if (value && counts[key] !== undefined) counts[key] += 1;
+      });
+    });
+    return counts;
+  }, [rows]);
+
   return (
     <div style={{ minHeight: "100vh", background: "#14181C", fontFamily: "'IBM Plex Mono', ui-monospace, monospace", color: "#E8EBEE", padding: "0" }}>
       <style>{`
@@ -298,15 +311,15 @@ export default function App() {
               <LayoutGrid size={14} /> DASHBOARD
             </button>
             <button
-              onClick={() => setView("exportacao")}
+              onClick={() => setView("regras")}
               style={{
                 display: "flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer",
                 padding: "8px 14px", borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: "0.02em",
-                background: view === "exportacao" ? "#E8930C" : "transparent",
-                color: view === "exportacao" ? "#14181C" : "#8A93A0",
+                background: view === "regras" ? "#E8930C" : "transparent",
+                color: view === "regras" ? "#14181C" : "#8A93A0",
               }}
             >
-              <Download size={14} /> EXPORTAÇÃO
+              <CheckCircle2 size={14} /> REGRAS DE OURO
             </button>
           </div>
 
@@ -631,89 +644,32 @@ export default function App() {
       {view === "dashboard" && (
         <DashboardView dash={dash} totals={totals} rowsCount={rows.length} />
       )}
-      {view === "exportacao" && (
+      {view === "regras" && (
         <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 24, marginBottom: 28 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
             <div className="disp" style={{ fontSize: 17, fontWeight: 700, letterSpacing: "0.01em" }}>
-              EXPORTAÇÃO DE REGISTROS
+              REGRAS DE OURO / NR10
             </div>
-            <button className="btn-primary" onClick={exportXlsx} disabled={filtered.length === 0}>
-              <Download size={16} /> Exportar planilha
-            </button>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, marginBottom: 20 }}>
-            <div>
-              <label className="field-label">Pesquisa</label>
-              <input
-                type="text"
-                placeholder="Filtrar por OS, encarregado, regional, processo..."
-                className="field-input"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="field-label">Mês</label>
-              <select
-                value={monthFilter}
-                onChange={(e) => setMonthFilter(e.target.value)}
-                className="field-input"
-              >
-                <option value="all">Todos os meses</option>
-                {monthOptions.map((month) => (
-                  <option key={month} value={month}>{formatMonthLabel(month)}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="field-label">Registros</label>
-              <div className="field-input" style={{ display: "flex", alignItems: "center", minHeight: 44, background: "#1C2126", color: "#E8EBEE" }}>
-                {filtered.length} registros selecionados
+            {Object.entries(RULES_DE_OURO).map(([key, label]) => (
+              <div key={key} style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 18 }}>
+                <div style={{ fontSize: 13, color: "#E8EBEE", marginBottom: 10, fontWeight: 700 }}>{label}</div>
+                <div style={{ fontSize: 12, color: "#8A93A0", marginBottom: 14 }}>Registros com essa regra:</div>
+                <div style={{ fontSize: 28, fontWeight: 800, color: "#E8930C" }}>{ruleCounts[key] || 0}</div>
               </div>
-            </div>
+            ))}
           </div>
-          <div style={{ overflowX: "auto" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Encarregado</th>
-                  <th>OS</th>
-                  <th>Tipo de Serviço</th>
-                  <th>Regional</th>
-                  <th>Arquivos</th>
-                  <th>Regras de Ouro</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
-                      {rows.length === 0 ? "Nenhum registro ainda. Preencha o formulário na aba Registro." : "Nenhum resultado para esse filtro."}
-                    </td>
-                  </tr>
-                ) : filtered.map((r) => {
-                  const fs = FOTO_STYLES[r.registroFoto];
-                  return (
-                    <tr key={r.id}>
-                      <td>{r.data}</td>
-                      <td>{r.encarregado}</td>
-                      <td style={{ color: "#E8930C", fontWeight: 600 }}>{r.os}</td>
-                      <td>{r.tipoServico || "—"}</td>
-                      <td>{r.regional || "—"}</td>
-                      <td>{r.arquivos?.map((file) => file.name).join(", ") || "—"}</td>
-                      <td>{Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]).join("; ") || "—"}</td>
-                      <td>
-                        <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: fs.bg, color: fs.fg }}>
-                          {r.registroFoto}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div style={{ background: "#14181C", border: "1px solid #2E3540", borderRadius: 8, padding: 18 }}>
+            <div style={{ fontSize: 12, color: "#6B7580", marginBottom: 12 }}>Use a aba Registro para marcar quais regras de ouro se aplicam a cada serviço. Aqui você acompanha os itens NR10 mais utilizados no histórico.</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+              {Object.entries(ruleCounts).map(([key, count]) => (
+                <div key={key} style={{ padding: 12, background: "#1C2126", borderRadius: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, color: "#E8EBEE" }}>{RULES_DE_OURO[key]}</span>
+                  <span style={{ fontSize: 14, color: "#E8930C", fontWeight: 700 }}>{count}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
