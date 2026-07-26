@@ -939,7 +939,7 @@ function DashboardView({ dash, rowsCount, monthOptions, dashboardMonth, setDashb
         </div>
         <div style={cardStyle}>
           <div style={titleStyle}>Não conformidades</div>
-          <div className="disp" style={{ fontSize: 38, fontWeight: 800, color: "#D64545" }}>{totals.naoConforme}</div>
+          <div className="disp" style={{ fontSize: 38, fontWeight: 800, color: "#D64545" }}>{dash.naoConforme}</div>
         </div>
         <div style={cardStyle}>
           <div style={titleStyle}>Fotos não enviadas</div>
