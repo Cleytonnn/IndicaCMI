@@ -21,20 +21,37 @@ const recordSchema = new mongoose.Schema({
 
 export const Record = mongoose.model('Record', recordSchema);
 
-let connected = false;
+let connectPromise = null;
 
 export async function connectDB() {
-  if (connected) return;
-  
-  try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/indica';
-    await mongoose.connect(mongoUri);
-    connected = true;
-    console.log('MongoDB connected');
-  } catch (err) {
-    console.error('MongoDB connection error:', err);
-    throw err;
+  if (mongoose.connection.readyState === 1) {
+    return;
   }
+  
+  if (connectPromise) {
+    return connectPromise;
+  }
+  
+  connectPromise = (async () => {
+    try {
+      const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/indica';
+      await mongoose.connect(mongoUri, {
+        connectTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
+        serverSelectionTimeoutMS: 5000,
+        retryWrites: true,
+        w: 'majority'
+      });
+      console.log('MongoDB connected');
+      connectPromise = null;
+    } catch (err) {
+      console.error('MongoDB connection error:', err);
+      connectPromise = null;
+      throw err;
+    }
+  })();
+  
+  return connectPromise;
 }
 
 export async function getAll() {
