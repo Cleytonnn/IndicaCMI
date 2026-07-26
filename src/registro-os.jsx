@@ -75,6 +75,10 @@ const CHART_COLORS = {
 
 const getRuleImage = (key) => RULE_IMAGES[key] || "";
 
+const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+  ? 'http://localhost:3000'
+  : '';
+
 export default function App() { 
   const [view, setView] = useState("registro"); // "registro" | "dashboard" | "regras"
   const [rows, setRows] = useState([]);
@@ -87,7 +91,7 @@ export default function App() {
   useEffect(() => {
     const fetchRows = async () => {
       try {
-        const res = await fetch('http://localhost:3000/api/records');
+        const res = await fetch(`${API_BASE}/api/records`);
         if (res.ok) {
           const data = await res.json();
           setRows(Array.isArray(data) ? data : []);
@@ -124,7 +128,7 @@ export default function App() {
     const payload = editingId ? { ...form, id: editingId } : { ...form, id: crypto.randomUUID() };
     try {
       const res = await fetch(
-        editingId ? `http://localhost:3000/api/records/${payload.id}` : 'http://localhost:3000/api/records',
+        editingId ? `${API_BASE}/api/records/${payload.id}` : `${API_BASE}/api/records`,
         {
           method: editingId ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -160,7 +164,7 @@ export default function App() {
 
   const handleDelete = async (id) => {
     try {
-      const res = await fetch(`http://localhost:3000/api/records/${id}`, { method: 'DELETE' });
+      const res = await fetch(`${API_BASE}/api/records/${id}`, { method: 'DELETE' });
       if (res.ok || res.status === 204) {
         setRows((rs) => rs.filter((r) => r.id !== id));
       } else {
