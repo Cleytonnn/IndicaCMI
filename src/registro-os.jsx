@@ -85,15 +85,28 @@ export default function App() {
   const [dashboardMonth, setDashboardMonth] = useState("all");
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("indicaServicosRows");
-    if (saved) {
+    const fetchRows = async () => {
       try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) setRows(parsed);
-      } catch (error) {
-        console.warn("Falha ao carregar histórico de registros:", error);
+        const res = await fetch('http://localhost:3000/api/records');
+        if (res.ok) {
+          const data = await res.json();
+          setRows(Array.isArray(data) ? data : []);
+          return;
+        }
+      } catch (e) {
+        // fallback to localStorage
       }
-    }
+      const saved = window.localStorage.getItem("indicaServicosRows");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setRows(parsed);
+        } catch (error) {
+          console.warn("Falha ao carregar histórico de registros:", error);
+        }
+      }
+    };
+    fetchRows();
   }, []);
 
   useEffect(() => {
@@ -106,15 +119,38 @@ export default function App() {
     form.data && form.encarregado && form.os &&
     (form.conformidade !== "Não conforme" || form.descNaoConformidade.trim().length > 0);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!requiredOk) return;
-    if (editingId) {
-      setRows((rs) => rs.map((r) => (r.id === editingId ? { ...form, id: editingId } : r)));
-      setEditingId(null);
-    } else {
-      setRows((rs) => [...rs, { ...form, id: crypto.randomUUID() }]);
+    const payload = editingId ? { ...form, id: editingId } : { ...form, id: crypto.randomUUID() };
+    try {
+      const res = await fetch(
+        editingId ? `http://localhost:3000/api/records/${payload.id}` : 'http://localhost:3000/api/records',
+        {
+          method: editingId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
+      if (!res.ok) throw new Error('Falha ao salvar registro');
+      const saved = await res.json();
+      if (editingId) {
+        setRows((rs) => rs.map((r) => (r.id === editingId ? saved : r)));
+        setEditingId(null);
+      } else {
+        setRows((rs) => [...rs, saved]);
+      }
+      setForm(EMPTY);
+    } catch (err) {
+      console.error(err);
+      // fallback local update
+      if (editingId) {
+        setRows((rs) => rs.map((r) => (r.id === editingId ? { ...payload } : r)));
+        setEditingId(null);
+      } else {
+        setRows((rs) => [...rs, payload]);
+      }
+      setForm(EMPTY);
     }
-    setForm(EMPTY);
   };
 
   const handleEdit = (row) => {
@@ -122,8 +158,18 @@ export default function App() {
     setEditingId(row.id);
   };
 
-  const handleDelete = (id) => {
-    setRows((rs) => rs.filter((r) => r.id !== id));
+  const handleDelete = async (id) => {
+    try {
+      const res = await fetch(`http://localhost:3000/api/records/${id}`, { method: 'DELETE' });
+      if (res.ok || res.status === 204) {
+        setRows((rs) => rs.filter((r) => r.id !== id));
+      } else {
+        throw new Error('Erro ao deletar');
+      }
+    } catch (err) {
+      console.error(err);
+      setRows((rs) => rs.filter((r) => r.id !== id));
+    }
     if (editingId === id) {
       setEditingId(null);
       setForm(EMPTY);
