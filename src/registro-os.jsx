@@ -45,12 +45,12 @@ const EMPTY = {
 };
 
 const RULES_DE_OURO = {
-  desligamentoRede: "Desligamento de rede",
-  seccionamento: "Seccionamento",
-  bloqueio: "Bloqueio de energia",
-  atestar: "Atestar ausência de tensão",
-  protegerEquipamentosEnergizados: "Proteger equipamentos energizados",
-  epi: "Uso de EPI adequado",
+  desligamentoRede: "Seccionar",
+  seccionamento: "Impedir o religamento (bloqueio)",
+  bloqueio: "Sinalizar",
+  atestar: "Confirmar ausência de tensão",
+  protegerEquipamentosEnergizados: "Instalar aterramento temporário (quando aplicável)",
+  epi: "Proteger partes energizadas próximas",
 };
 
 const RULE_IMAGES = {
@@ -234,6 +234,15 @@ export default function App() {
     return `${month}/${year}`;
   };
 
+  const formatDateForExport = (value) => {
+    if (!value) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [year, month, day] = value.split("-");
+      return `${day}/${month}/${year}`;
+    }
+    return value;
+  };
+
   const filtered = useMemo(() => {
     let subset = rows;
     if (monthFilter !== "all") {
@@ -253,7 +262,7 @@ export default function App() {
     const data = filtered.map((r) => {
       const selectedRules = Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]);
       return {
-        "Data": r.data,
+        "Data": formatDateForExport(r.data),
         "Nome do Encarregado": r.encarregado,
         "OS": r.os,
         "Tipo de Serviço": r.tipoServico,
@@ -305,7 +314,7 @@ export default function App() {
       }
       const selectedRules = Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]).join("; ");
       const row = [
-        r.data || "-",
+        formatDateForExport(r.data) || "-",
         r.encarregado || "-",
         r.os || "-",
         r.tipoServico || "-",
