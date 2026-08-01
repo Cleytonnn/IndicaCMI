@@ -512,11 +512,26 @@ export default function App() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
             <div>
               <label className="field-label">Regional</label>
-              <select className="field-input" value={form.regional} onChange={(e) => update("regional", e.target.value)}>
-                <option value="">Selecione</option>
-                <option value="Baixada">Baixada</option>
-                <option value="Oeste">Oeste</option>
-              </select>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {['Baixada', 'Oeste'].map((opt) => {
+                  const active = form.regional === opt;
+                  return (
+                    <div
+                      key={opt}
+                      className="radio-pill"
+                      onClick={() => update("regional", opt)}
+                      style={{
+                        background: active ? "#1F6B3A" : "#1C2126",
+                        borderColor: active ? "#2F9E52" : "#2E3540",
+                        color: active ? "#EAF4EE" : "#8A93A0",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}
+                    >
+                      {opt}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <label className="field-label">Processo</label>
@@ -535,11 +550,26 @@ export default function App() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
             <div>
               <label className="field-label">Quem inspecionou</label>
-              <select className="field-input" value={form.quemInspecionou} onChange={(e) => update("quemInspecionou", e.target.value)}>
-                <option value="">Selecione</option>
-                <option value="Cleyton">Cleyton</option>
-                <option value="Camilly">Camilly</option>
-              </select>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {['Cleyton', 'Camilly'].map((opt) => {
+                  const active = form.quemInspecionou === opt;
+                  return (
+                    <div
+                      key={opt}
+                      className="radio-pill"
+                      onClick={() => update("quemInspecionou", opt)}
+                      style={{
+                        background: active ? "#1F6B3A" : "#1C2126",
+                        borderColor: active ? "#2F9E52" : "#2E3540",
+                        color: active ? "#EAF4EE" : "#8A93A0",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}
+                    >
+                      {opt}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <label className="field-label">Observação</label>
