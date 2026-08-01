@@ -19,11 +19,13 @@ const EMPTY = {
   conformidade: "Conforme",
   descNaoConformidade: "",
   processo: "",
+  nomeEletricistaLider: "",
+  nomeEletricista: "",
+  quemInspecionou: "",
   matriculaLider: "",
   matriculaEletricista: "",
   registroFoto: "Enviado",
   observacao: "",
-  naoConformidade: "",
   regrasOuro: {
     desligamentoRede: false,
     seccionamento: false,
@@ -501,20 +503,41 @@ export default function App() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
             <div>
               <label className="field-label">Regional</label>
-              <input type="text" className="field-input" placeholder="Ex: Baixada" value={form.regional} onChange={(e) => update("regional", e.target.value)} />
+              <select className="field-input" value={form.regional} onChange={(e) => update("regional", e.target.value)}>
+                <option value="">Selecione</option>
+                <option value="Baixada">Baixada</option>
+                <option value="Oeste">Oeste</option>
+              </select>
             </div>
             <div>
               <label className="field-label">Processo</label>
               <input type="text" className="field-input" placeholder="Ex: Poda / Inspeção" value={form.processo} onChange={(e) => update("processo", e.target.value)} />
             </div>
             <div>
+              <label className="field-label">Nome do Eletricista Líder</label>
+              <input type="text" className="field-input" placeholder="Ex: João Silva" value={form.nomeEletricistaLider} onChange={(e) => update("nomeEletricistaLider", e.target.value)} />
+            </div>
+            <div>
+              <label className="field-label">Nome do Eletricista</label>
+              <input type="text" className="field-input" placeholder="Ex: Pedro Almeida" value={form.nomeEletricista} onChange={(e) => update("nomeEletricista", e.target.value)} />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
+            <div>
+              <label className="field-label">Quem inspecionou</label>
+              <select className="field-input" value={form.quemInspecionou} onChange={(e) => update("quemInspecionou", e.target.value)}>
+                <option value="">Selecione</option>
+                <option value="Cleyton">Cleyton</option>
+                <option value="Camilly">Camilly</option>
+              </select>
+            </div>
+            <div>
               <label className="field-label">Observação</label>
               <input type="text" className="field-input" placeholder="Observações adicionais" value={form.observacao} onChange={(e) => update("observacao", e.target.value)} />
             </div>
-            <div>
-              <label className="field-label">Não conformidade</label>
-              <input type="text" className="field-input" placeholder="Descreva não conformidade" value={form.naoConformidade} onChange={(e) => update("naoConformidade", e.target.value)} />
-            </div>
+            <div />
+            <div />
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24, marginBottom: 20 }}>
@@ -649,10 +672,10 @@ export default function App() {
                   <th>Tipo de Serviço</th>
                   <th>Regional</th>
                   <th>Observação</th>
-                  <th>Não conformidade</th>
+                  <th>Nome Líder</th>
+                  <th>Nome Eletricista</th>
+                  <th>Quem inspecionou</th>
                   <th>Processo</th>
-                  <th>Mat. Líder</th>
-                  <th>Mat. Eletricista</th>
                   <th>Arquivos de Regras</th>
                   <th>Regras de Ouro</th>
                   <th>Foto</th>
@@ -689,11 +712,11 @@ export default function App() {
                           {r.conformidade}{r.conformidade === "Não conforme" ? " ⓘ" : ""}
                         </span>
                       </td>
-                              <td>{r.processo || "—"}</td>
+                      <td>{r.processo || "—"}</td>
                       <td>{r.observacao || "—"}</td>
-                      <td>{r.naoConformidade || "—"}</td>
-                      <td>{r.matriculaLider || "—"}</td>
-                      <td>{r.matriculaEletricista || "—"}</td>
+                      <td>{r.nomeEletricistaLider || "—"}</td>
+                      <td>{r.nomeEletricista || "—"}</td>
+                      <td>{r.quemInspecionou || "—"}</td>
                       <td>
                         <div style={{ display: "grid", gap: 4 }}>
                           {Object.entries(r.regrasArquivos || {}).filter(([, file]) => file).map(([key, file]) => (
