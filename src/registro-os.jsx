@@ -123,7 +123,7 @@ export default function App() {
   const update = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 
   const requiredOk =
-    form.data && form.encarregado && form.os &&
+    form.data &&
     (form.conformidade !== "Não conforme" || form.descNaoConformidade.trim().length > 0);
 
   const handleSubmit = async () => {
@@ -507,11 +507,11 @@ export default function App() {
               <input type="date" className="field-input" value={form.data} onChange={(e) => update("data", e.target.value)} />
             </div>
             <div>
-              <label className="field-label">Nome do Encarregado *</label>
+              <label className="field-label">Nome do Encarregado</label>
               <input type="text" className="field-input" placeholder="Ex: João Silva" value={form.encarregado} onChange={(e) => update("encarregado", e.target.value)} />
             </div>
             <div>
-              <label className="field-label">OS *</label>
+              <label className="field-label">OS</label>
               <input type="text" className="field-input" placeholder="Nº da OS" value={form.os} onChange={(e) => update("os", e.target.value)} />
             </div>
             <div>
@@ -708,7 +708,7 @@ export default function App() {
               <span style={{ fontSize: 12, color: "#6B7580", alignSelf: "center" }}>
                 {form.conformidade === "Não conforme" && !form.descNaoConformidade.trim()
                   ? "Descreva a não conformidade para adicionar."
-                  : "Preencha Data, Encarregado e OS para adicionar."}
+                  : "Preencha a data para adicionar."}
               </span>
             )}
           </div>
