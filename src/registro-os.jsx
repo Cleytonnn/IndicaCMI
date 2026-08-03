@@ -270,6 +270,9 @@ export default function App() {
         "Observação": r.observacao,
         "Status": r.conformidade,
         "Descrição da Não Conformidade": r.descNaoConformidade,
+        "Nome do agente que realizou a inspeção": r.quemInspecionou,
+        "Nome do Eletricista Líder": r.nomeEletricistaLider,
+        "Nome do Eletricista": r.nomeEletricista,
         "Regras de Ouro": selectedRules.join("; "),
         "Arquivos": r.regrasArquivos ? Object.entries(r.regrasArquivos).filter(([, file]) => file).map(([key, file]) => `${RULES_DE_OURO[key]}: ${file.name}`).join("; ") : "",
         "Processo": r.processo,
@@ -296,7 +299,7 @@ export default function App() {
     const lineHeight = 18;
     let y = margin;
     const headers = [
-      "Data", "Encarregado", "OS", "Tipo de Serviço", "Regional", "Status", "Não conformidade", "Regras de Ouro"
+      "Data", "Encarregado", "OS", "Tipo de Serviço", "Regional", "Status", "Não conformidade", "Agente da inspeção", "Eletricista líder", "Eletricista", "Regras de Ouro"
     ];
     doc.setFontSize(12);
     doc.text("Relatório de Registros", margin, y);
@@ -321,6 +324,9 @@ export default function App() {
         r.regional || "-",
         r.conformidade || "-",
         r.descNaoConformidade || "-",
+        r.quemInspecionou || "-",
+        r.nomeEletricistaLider || "-",
+        r.nomeEletricista || "-",
         selectedRules || "-",
       ];
       doc.text(row.join("  |  "), margin, y);
