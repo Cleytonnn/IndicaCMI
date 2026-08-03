@@ -13,6 +13,7 @@ const recordSchema = new mongoose.Schema({
   nomeEletricistaLider: String,
   nomeEletricista: String,
   quemInspecionou: String,
+  tipoInspecao: String,
   matriculaLider: String,
   matriculaEletricista: String,
   registroFoto: String,

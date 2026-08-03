@@ -22,6 +22,7 @@ const EMPTY = {
   nomeEletricistaLider: "",
   nomeEletricista: "",
   quemInspecionou: "",
+  tipoInspecao: "",
   matriculaLider: "",
   matriculaEletricista: "",
   registroFoto: "Enviado",
@@ -271,6 +272,7 @@ export default function App() {
         "Status": r.conformidade,
         "Descrição da Não Conformidade": r.descNaoConformidade,
         "Nome do agente que realizou a inspeção": r.quemInspecionou,
+        "Tipo de inspeção": r.tipoInspecao,
         "Nome do Eletricista Líder": r.nomeEletricistaLider,
         "Nome do Eletricista": r.nomeEletricista,
         "Regras de Ouro": selectedRules.join("; "),
@@ -299,7 +301,7 @@ export default function App() {
     const lineHeight = 18;
     let y = margin;
     const headers = [
-      "Data", "Encarregado", "OS", "Tipo de Serviço", "Regional", "Status", "Não conformidade", "Agente da inspeção", "Eletricista líder", "Eletricista", "Regras de Ouro"
+      "Data", "Encarregado", "OS", "Tipo de Serviço", "Regional", "Status", "Não conformidade", "Agente da inspeção", "Tipo de inspeção", "Eletricista líder", "Eletricista", "Regras de Ouro"
     ];
     doc.setFontSize(12);
     doc.text("Relatório de Registros", margin, y);
@@ -325,6 +327,7 @@ export default function App() {
         r.conformidade || "-",
         r.descNaoConformidade || "-",
         r.quemInspecionou || "-",
+        r.tipoInspecao || "-",
         r.nomeEletricistaLider || "-",
         r.nomeEletricista || "-",
         selectedRules || "-",
@@ -380,8 +383,10 @@ export default function App() {
     const naoEnviadas = dashboardRows.filter((r) => r.registroFoto === "Não enviado").length;
     const goldRuleCount = dashboardRows.filter((r) => Object.values(r.regrasOuro || {}).some(Boolean)).length;
     const goldRuleRate = dashboardRows.length ? Math.round((goldRuleCount / dashboardRows.length) * 100) : 0;
+    const protecaoCount = dashboardRows.filter((r) => r.tipoInspecao === "Proteção").length;
+    const rdaCount = dashboardRows.filter((r) => r.tipoInspecao === "RDA").length;
 
-    return { regionalData, tipoData, fotoData, dateData, topEncarregados, taxaConformidade, naoEnviadas, naoConforme, goldRuleCount, goldRuleRate };
+    return { regionalData, tipoData, fotoData, dateData, topEncarregados, taxaConformidade, naoEnviadas, naoConforme, goldRuleCount, goldRuleRate, protecaoCount, rdaCount };
   }, [dashboardRows]);
 
   const ruleCounts = useMemo(() => {
@@ -553,7 +558,7 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 16 }}>
             <div>
               <label className="field-label">Quem inspecionou</label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -578,11 +583,32 @@ export default function App() {
               </div>
             </div>
             <div>
+              <label className="field-label">Tipo de inspeção</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {['Proteção', 'RDA'].map((opt) => {
+                  const active = form.tipoInspecao === opt;
+                  return (
+                    <div
+                      key={opt}
+                      className="radio-pill"
+                      onClick={() => update("tipoInspecao", opt)}
+                      style={{
+                        background: active ? "#1F6B3A" : "#1C2126",
+                        borderColor: active ? "#2F9E52" : "#2E3540",
+                        color: active ? "#EAF4EE" : "#8A93A0",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}
+                    >
+                      {opt}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
               <label className="field-label">Observação</label>
               <input type="text" className="field-input" placeholder="Observações adicionais" value={form.observacao} onChange={(e) => update("observacao", e.target.value)} />
             </div>
-            <div />
-            <div />
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24, marginBottom: 20 }}>
@@ -720,6 +746,7 @@ export default function App() {
                   <th>Nome Líder</th>
                   <th>Nome Eletricista</th>
                   <th>Quem inspecionou</th>
+                  <th>Tipo de inspeção</th>
                   <th>Processo</th>
                   <th>Arquivos de Regras</th>
                   <th>Regras de Ouro</th>
@@ -730,7 +757,7 @@ export default function App() {
               <tbody>
                 {filtered.length === 0 && (
                   <tr>
-                  <td colSpan={14} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
+                  <td colSpan={15} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
                       {rows.length === 0 ? "Nenhum registro ainda. Preencha o formulário acima para começar." : "Nenhum resultado para esse filtro."}
                     </td>
                   </tr>
@@ -762,6 +789,7 @@ export default function App() {
                       <td>{r.nomeEletricistaLider || "—"}</td>
                       <td>{r.nomeEletricista || "—"}</td>
                       <td>{r.quemInspecionou || "—"}</td>
+                      <td>{r.tipoInspecao || "—"}</td>
                       <td>
                         <div style={{ display: "grid", gap: 4 }}>
                           {Object.entries(r.regrasArquivos || {}).filter(([, file]) => file).map(([key, file]) => (
@@ -990,6 +1018,16 @@ function DashboardView({ dash, rowsCount, monthOptions, dashboardMonth, setDashb
             <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Regras de Ouro</div>
             <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#E8930C" }}>{dash.goldRuleCount}</div>
             <div style={{ fontSize: 11, color: "#8A93A0" }}>{dash.goldRuleRate}% dos registros</div>
+          </div>
+          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 170 }}>
+            <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Proteção</div>
+            <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#2F9E52" }}>{dash.protecaoCount}</div>
+            <div style={{ fontSize: 11, color: "#8A93A0" }}>registros</div>
+          </div>
+          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 170 }}>
+            <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>RDA</div>
+            <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#4D8FFF" }}>{dash.rdaCount}</div>
+            <div style={{ fontSize: 11, color: "#8A93A0" }}>registros</div>
           </div>
         </div>
       </div>
