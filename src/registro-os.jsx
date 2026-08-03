@@ -76,6 +76,19 @@ const CHART_COLORS = {
   accent2: "#4D8FFF",
 };
 
+const PROCESSO_OPTIONS = {
+  RDA: [
+    "BLINDAGEM (RDA)",
+    "EXPANSÃO (RDA)",
+    "LINHA VIVA (RDA)",
+    "MANOBRA (RDA)",
+    "MANUTENÇÃO (RDA)",
+    "NORMALIZAÇÃO (RDA)",
+    "OPERAÇÃO (RDA)",
+  ],
+  Proteção: ["CORE", "LIDE", "ANEXO IV", "LNC", "PODA", "REN"],
+};
+
 const getRuleImage = (key) => RULE_IMAGES[key] || "";
 
 const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
@@ -121,6 +134,20 @@ export default function App() {
   }, [rows]);
 
   const update = (field, value) => setForm((f) => ({ ...f, [field]: value }));
+
+  const handleTipoInspecaoChange = (value) => {
+    setForm((f) => ({
+      ...f,
+      tipoInspecao: value,
+      processo: f.tipoInspecao === value ? f.processo : "",
+    }));
+  };
+
+  const processoOptions = form.tipoInspecao === "Proteção"
+    ? PROCESSO_OPTIONS.Proteção
+    : form.tipoInspecao === "RDA"
+      ? PROCESSO_OPTIONS.RDA
+      : [];
 
   const requiredOk =
     form.data &&
@@ -551,15 +578,12 @@ export default function App() {
                 value={form.processo}
                 onChange={(e) => update("processo", e.target.value)}
                 style={{ appearance: "auto" }}
+                disabled={!form.tipoInspecao}
               >
-                <option value="">Selecione...</option>
-                <option value="BLINDAGEM (RDA)">BLINDAGEM (RDA)</option>
-                <option value="EXPANSÃO (RDA)">EXPANSÃO (RDA)</option>
-                <option value="LINHA VIVA (RDA)">LINHA VIVA (RDA)</option>
-                <option value="MANOBRA (RDA)">MANOBRA (RDA)</option>
-                <option value="MANUTENÇÃO (RDA)">MANUTENÇÃO (RDA)</option>
-                <option value="NORMALIZAÇÃO (RDA)">NORMALIZAÇÃO (RDA)</option>
-                <option value="OPERAÇÃO (RDA)">OPERAÇÃO (RDA)</option>
+                <option value="">{form.tipoInspecao ? "Selecione..." : "Selecione o tipo de inspeção"}</option>
+                {processoOptions.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -605,7 +629,7 @@ export default function App() {
                     <div
                       key={opt}
                       className="radio-pill"
-                      onClick={() => update("tipoInspecao", opt)}
+                      onClick={() => handleTipoInspecaoChange(opt)}
                       style={{
                         background: active ? "#1F6B3A" : "#1C2126",
                         borderColor: active ? "#2F9E52" : "#2E3540",
