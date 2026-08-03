@@ -546,7 +546,21 @@ export default function App() {
             </div>
             <div>
               <label className="field-label">Processo</label>
-              <input type="text" className="field-input" placeholder="Ex: Poda / Inspeção" value={form.processo} onChange={(e) => update("processo", e.target.value)} />
+              <select
+                className="field-input"
+                value={form.processo}
+                onChange={(e) => update("processo", e.target.value)}
+                style={{ appearance: "auto" }}
+              >
+                <option value="">Selecione...</option>
+                <option value="BLINDAGEM (RDA)">BLINDAGEM (RDA)</option>
+                <option value="EXPANSÃO (RDA)">EXPANSÃO (RDA)</option>
+                <option value="LINHA VIVA (RDA)">LINHA VIVA (RDA)</option>
+                <option value="MANOBRA (RDA)">MANOBRA (RDA)</option>
+                <option value="MANUTENÇÃO (RDA)">MANUTENÇÃO (RDA)</option>
+                <option value="NORMALIZAÇÃO (RDA)">NORMALIZAÇÃO (RDA)</option>
+                <option value="OPERAÇÃO (RDA)">OPERAÇÃO (RDA)</option>
+              </select>
             </div>
             <div>
               <label className="field-label">Nome do Eletricista Líder</label>
