@@ -103,6 +103,8 @@ export default function App() {
   const [filter, setFilter] = useState("");
   const [monthFilter, setMonthFilter] = useState("all");
   const [dashboardMonth, setDashboardMonth] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
 
   useEffect(() => {
     const fetchRows = async () => {
@@ -110,7 +112,7 @@ export default function App() {
         const res = await fetch(`${API_BASE}/api/records`);
         if (res.ok) {
           const data = await res.json();
-          setRows(Array.isArray(data) ? data : []);
+          setRows(Array.isArray(data) ? data.slice().sort(compareDateDesc) : []);
           return;
         }
       } catch (e) {
@@ -168,20 +170,20 @@ export default function App() {
       if (!res.ok) throw new Error('Falha ao salvar registro');
       const saved = await res.json();
       if (editingId) {
-        setRows((rs) => rs.map((r) => (r.id === editingId ? saved : r)));
+        setRows((rs) => rs.map((r) => (r.id === editingId ? saved : r)).slice().sort(compareDateDesc));
         setEditingId(null);
       } else {
-        setRows((rs) => [...rs, saved]);
+        setRows((rs) => [...rs, saved].slice().sort(compareDateDesc));
       }
       setForm(EMPTY);
     } catch (err) {
       console.error(err);
       // fallback local update
       if (editingId) {
-        setRows((rs) => rs.map((r) => (r.id === editingId ? { ...payload } : r)));
+        setRows((rs) => rs.map((r) => (r.id === editingId ? { ...payload } : r)).slice().sort(compareDateDesc));
         setEditingId(null);
       } else {
-        setRows((rs) => [...rs, payload]);
+        setRows((rs) => [...rs, payload].slice().sort(compareDateDesc));
       }
       setForm(EMPTY);
     }
@@ -271,6 +273,13 @@ export default function App() {
     return value;
   };
 
+  const compareDateDesc = (a, b) => {
+    if (!a?.data && !b?.data) return 0;
+    if (!a?.data) return 1;
+    if (!b?.data) return -1;
+    return new Date(b.data) - new Date(a.data);
+  };
+
   const filtered = useMemo(() => {
     let subset = rows;
     if (monthFilter !== "all") {
@@ -285,6 +294,27 @@ export default function App() {
         .includes(q)
     );
   }, [rows, filter, monthFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, monthFilter]);
+
+  const sortedFiltered = useMemo(() => {
+    return [...filtered].sort(compareDateDesc);
+  }, [filtered]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedFiltered.length / PAGE_SIZE));
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const pageRows = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return sortedFiltered.slice(start, start + PAGE_SIZE);
+  }, [sortedFiltered, currentPage]);
 
   const exportXlsx = () => {
     const data = filtered.map((r) => {
@@ -793,14 +823,14 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 && (
+                {pageRows.length === 0 && (
                   <tr>
                   <td colSpan={15} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
                       {rows.length === 0 ? "Nenhum registro ainda. Preencha o formulário acima para começar." : "Nenhum resultado para esse filtro."}
                     </td>
                   </tr>
                 )}
-                {filtered.map((r) => {
+                {pageRows.map((r) => {
                   const fs = FOTO_STYLES[r.registroFoto];
                   return (
                     <tr key={r.id}>
@@ -870,6 +900,32 @@ export default function App() {
                 })}
               </tbody>
             </table>
+          </div>
+          <div style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', borderTop: '1px solid #2E3540' }}>
+            <div style={{ color: '#8A93A0', fontSize: 12 }}>
+              Mostrando {pageRows.length} de {sortedFiltered.length} registros
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                className="btn-ghost"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                style={{ opacity: currentPage === 1 ? 0.5 : 1 }}
+              >
+                Anterior
+              </button>
+              <span style={{ color: '#E8EBEE', fontSize: 12 }}>
+                Página {currentPage} de {totalPages}
+              </span>
+              <button
+                className="btn-ghost"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                style={{ opacity: currentPage === totalPages ? 0.5 : 1 }}
+              >
+                Próxima
+              </button>
+            </div>
           </div>
         </div>
       </>
