@@ -43,6 +43,16 @@ const EMPTY = {
     protegerEquipamentosEnergizados: null,
     epi: null,
   },
+  tipoRegistro: "registro",
+};
+
+const EMPTY_NAO_ENVIO = {
+  data: "",
+  encarregado: "",
+  filial: "",
+  os: "",
+  naoEnvio: "",
+  tipoRegistro: "naoEnvio",
 };
 
 const RULES_DE_OURO = {
@@ -96,7 +106,7 @@ const API_BASE = typeof window !== 'undefined' && window.location.hostname === '
   : '';
 
 export default function App() { 
-  const [view, setView] = useState("registro"); // "registro" | "dashboard" | "regras"
+  const [view, setView] = useState("registro"); // "registro" | "dashboard" | "regras" | "naoEnvio"
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [editingId, setEditingId] = useState(null);
@@ -105,6 +115,9 @@ export default function App() {
   const [dashboardMonth, setDashboardMonth] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 20;
+
+  const registroRows = useMemo(() => rows.filter((r) => r.tipoRegistro !== "naoEnvio"), [rows]);
+  const naoEnvioRows = useMemo(() => rows.filter((r) => r.tipoRegistro === "naoEnvio"), [rows]);
 
   useEffect(() => {
     const fetchRows = async () => {
@@ -156,7 +169,10 @@ export default function App() {
     (form.conformidade !== "Não conforme" || form.descNaoConformidade.trim().length > 0);
 
   const handleSubmit = async () => {
-    if (!requiredOk) return;
+    const isNaoEnvio = form.tipoRegistro === "naoEnvio";
+    const requiredNaoEnvio = form.data && form.encarregado && form.os && form.naoEnvio;
+    if (isNaoEnvio && !requiredNaoEnvio) return;
+    if (!isNaoEnvio && !requiredOk) return;
     const payload = editingId ? { ...form, id: editingId } : { ...form, id: crypto.randomUUID() };
     try {
       const res = await fetch(
@@ -175,17 +191,16 @@ export default function App() {
       } else {
         setRows((rs) => [...rs, saved].slice().sort(compareDateDesc));
       }
-      setForm(EMPTY);
+      setForm(isNaoEnvio ? EMPTY_NAO_ENVIO : EMPTY);
     } catch (err) {
       console.error(err);
-      // fallback local update
       if (editingId) {
         setRows((rs) => rs.map((r) => (r.id === editingId ? { ...payload } : r)).slice().sort(compareDateDesc));
         setEditingId(null);
       } else {
         setRows((rs) => [...rs, payload].slice().sort(compareDateDesc));
       }
-      setForm(EMPTY);
+      setForm(isNaoEnvio ? EMPTY_NAO_ENVIO : EMPTY);
     }
   };
 
@@ -208,13 +223,13 @@ export default function App() {
     }
     if (editingId === id) {
       setEditingId(null);
-      setForm(EMPTY);
+      setForm(form.tipoRegistro === 'naoEnvio' ? EMPTY_NAO_ENVIO : EMPTY);
     }
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setForm(EMPTY);
+    setForm(form.tipoRegistro === 'naoEnvio' ? EMPTY_NAO_ENVIO : EMPTY);
   };
 
   const handleRuleFileUpload = async (event, ruleKey) => {
@@ -247,16 +262,48 @@ export default function App() {
 
   const monthOptions = useMemo(() => {
     const months = new Set();
-    rows.forEach((r) => {
+    const sourceRows = view === "naoEnvio" ? naoEnvioRows : registroRows;
+    sourceRows.forEach((r) => {
       if (r.data && r.data.length >= 7) months.add(r.data.slice(0, 7));
     });
     return Array.from(months).sort();
-  }, [rows]);
+  }, [view, naoEnvioRows, registroRows]);
 
   const dashboardRows = useMemo(() => {
-    if (dashboardMonth === "all") return rows;
-    return rows.filter((r) => r.data && r.data.slice(0, 7) === dashboardMonth);
-  }, [rows, dashboardMonth]);
+    if (dashboardMonth === "all") return registroRows;
+    return registroRows.filter((r) => r.data && r.data.slice(0, 7) === dashboardMonth);
+  }, [registroRows, dashboardMonth]);
+
+  const naoEnvioSummary = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const currentWeek = getWeekKey(today);
+    const currentMonth = today.slice(0, 7);
+    const uniqueByDay = new Set();
+    const uniqueByWeek = new Set();
+    const uniqueByMonth = new Set();
+    naoEnvioRows.forEach((r) => {
+      if (!r.data) return;
+      const encarregado = r.encarregado?.trim() || "Não informado";
+      if (r.data === today) {
+        uniqueByDay.add(encarregado);
+      }
+      if (getWeekKey(r.data) === currentWeek) {
+        uniqueByWeek.add(encarregado);
+      }
+      if (r.data.slice(0, 7) === currentMonth) {
+        uniqueByMonth.add(encarregado);
+      }
+    });
+    return {
+      total: naoEnvioRows.length,
+      today: uniqueByDay.size,
+      week: uniqueByWeek.size,
+      month: uniqueByMonth.size,
+      currentWeek,
+      currentMonth,
+      todayLabel: today,
+    };
+  }, [naoEnvioRows]);
 
   const formatMonthLabel = (value) => {
     if (!value || value === "all") return "Todos os meses";
@@ -273,6 +320,17 @@ export default function App() {
     return value;
   };
 
+  const getWeekKey = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNr = (target.getUTCDay() + 6) % 7;
+    target.setUTCDate(target.getUTCDate() - dayNr + 3);
+    const firstThursday = new Date(Date.UTC(target.getUTCFullYear(), 0, 4));
+    const weekNumber = 1 + Math.round(((target - firstThursday) / 86400000 - 3) / 7);
+    return `${target.getUTCFullYear()}-${String(weekNumber).padStart(2, "0")}`;
+  };
+
   const compareDateDesc = (a, b) => {
     if (!a?.data && !b?.data) return 0;
     if (!a?.data) return 1;
@@ -281,19 +339,17 @@ export default function App() {
   };
 
   const filtered = useMemo(() => {
-    let subset = rows;
+    let subset = view === "naoEnvio" ? naoEnvioRows : registroRows;
     if (monthFilter !== "all") {
       subset = subset.filter((r) => r.data && r.data.slice(0, 7) === monthFilter);
     }
     if (!filter.trim()) return subset;
     const q = filter.toLowerCase();
-    return subset.filter((r) =>
-      [r.os, r.encarregado, r.regional, r.tipoServico, r.processo]
-        .join(" ")
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [rows, filter, monthFilter]);
+    return subset.filter((r) => {
+      const fields = [r.os, r.encarregado, r.regional, r.tipoServico, r.processo, r.filial, r.naoEnvio, r.tipoRegistro];
+      return fields.join(" ").toLowerCase().includes(q);
+    });
+  }, [view, registroRows, naoEnvioRows, filter, monthFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -318,6 +374,16 @@ export default function App() {
 
   const exportXlsx = () => {
     const data = filtered.map((r) => {
+      if (r.tipoRegistro === 'naoEnvio') {
+        return {
+          "Data": formatDateForExport(r.data),
+          "Nome do Encarregado": r.encarregado,
+          "Filial": r.filial,
+          "OS": r.os,
+          "Não envio": r.naoEnvio,
+          "Tipo de registro": "Não envio",
+        };
+      }
       const selectedRules = Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]);
       return {
         "Data": formatDateForExport(r.data),
@@ -338,6 +404,7 @@ export default function App() {
         "Matrícula do Eletricista Líder": r.matriculaLider,
         "Matrícula do Eletricista": r.matriculaEletricista,
         "Registro de Foto": r.registroFoto,
+        "Tipo de registro": "Registro",
       };
     });
     const ws = XLSX.utils.json_to_sheet(data);
@@ -349,7 +416,8 @@ export default function App() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Registros");
     const suffix = monthFilter === "all" ? new Date().toISOString().slice(0, 10) : `${monthFilter}-historic`;
-    XLSX.writeFile(wb, `registros_os_${suffix}.xlsx`);
+    const filename = view === "naoEnvio" ? `nao_envio_${suffix}.xlsx` : `registros_os_${suffix}.xlsx`;
+    XLSX.writeFile(wb, filename);
   };
 
   const exportPdf = () => {
@@ -357,11 +425,11 @@ export default function App() {
     const margin = 40;
     const lineHeight = 18;
     let y = margin;
-    const headers = [
-      "Data", "Encarregado", "OS", "Tipo de Serviço", "Regional", "Status", "Não conformidade", "Agente da inspeção", "Tipo de inspeção", "Eletricista líder", "Eletricista", "Regras de Ouro"
-    ];
+    const headers = view === "naoEnvio"
+      ? ["Data", "Encarregado", "Filial", "OS", "Tipo de registro", "Não envio"]
+      : ["Data", "Encarregado", "OS", "Tipo de Serviço", "Regional", "Status", "Não conformidade", "Agente da inspeção", "Tipo de inspeção", "Eletricista líder", "Eletricista", "Regras de Ouro"];
     doc.setFontSize(12);
-    doc.text("Relatório de Registros", margin, y);
+    doc.text(view === "naoEnvio" ? "Relatório de Não Envio de RO" : "Relatório de Registros", margin, y);
     y += lineHeight * 1.5;
     doc.setFontSize(10);
     doc.text(headers.join("  |  "), margin, y);
@@ -374,26 +442,39 @@ export default function App() {
         doc.addPage();
         y = margin;
       }
-      const selectedRules = Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]).join("; ");
-      const row = [
-        formatDateForExport(r.data) || "-",
-        r.encarregado || "-",
-        r.os || "-",
-        r.tipoServico || "-",
-        r.regional || "-",
-        r.conformidade || "-",
-        r.descNaoConformidade || "-",
-        r.quemInspecionou || "-",
-        r.tipoInspecao || "-",
-        r.nomeEletricistaLider || "-",
-        r.nomeEletricista || "-",
-        selectedRules || "-",
-      ];
-      doc.text(row.join("  |  "), margin, y);
+      if (view === "naoEnvio") {
+        const row = [
+          formatDateForExport(r.data) || "-",
+          r.encarregado || "-",
+          r.filial || "-",
+          r.os || "-",
+          "Não envio",
+          r.naoEnvio || "-",
+        ];
+        doc.text(row.join("  |  "), margin, y);
+      } else {
+        const selectedRules = Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]).join("; ");
+        const row = [
+          formatDateForExport(r.data) || "-",
+          r.encarregado || "-",
+          r.os || "-",
+          r.tipoServico || "-",
+          r.regional || "-",
+          r.conformidade || "-",
+          r.descNaoConformidade || "-",
+          r.quemInspecionou || "-",
+          r.tipoInspecao || "-",
+          r.nomeEletricistaLider || "-",
+          r.nomeEletricista || "-",
+          selectedRules || "-",
+        ];
+        doc.text(row.join("  |  "), margin, y);
+      }
       y += lineHeight;
     });
     const suffix = monthFilter === "all" ? new Date().toISOString().slice(0, 10) : `${monthFilter}-historic`;
-    doc.save(`registros_os_${suffix}.pdf`);
+    const filename = view === "naoEnvio" ? `nao_envio_${suffix}.pdf` : `registros_os_${suffix}.pdf`;
+    doc.save(filename);
   };
 
   const totals = useMemo(() => {
@@ -524,6 +605,21 @@ export default function App() {
               }}
             >
               <CheckCircle2 size={14} /> REGRAS DE OURO
+            </button>
+            <button
+              onClick={() => {
+                setView("naoEnvio");
+                setForm(EMPTY_NAO_ENVIO);
+                setEditingId(null);
+              }}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer",
+                padding: "8px 14px", borderRadius: 4, fontSize: 12, fontWeight: 700, letterSpacing: "0.02em",
+                background: view === "naoEnvio" ? "#E8930C" : "transparent",
+                color: view === "naoEnvio" ? "#14181C" : "#8A93A0",
+              }}
+            >
+              <AlertTriangle size={14} /> NÃO ENVIO
             </button>
           </div>
 
@@ -939,6 +1035,165 @@ export default function App() {
           dashboardMonth={dashboardMonth}
           setDashboardMonth={setDashboardMonth}
         />
+      )}
+      {view === "naoEnvio" && (
+        <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 24, marginBottom: 28 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+            <div className="disp" style={{ fontSize: 17, fontWeight: 700, letterSpacing: "0.01em" }}>
+              REGISTRO DE NÃO ENVIO DE RO
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 16, marginBottom: 20 }}>
+            <div>
+              <label className="field-label">Data *</label>
+              <input
+                type="date"
+                className="field-input"
+                value={form.data}
+                onChange={(e) => setForm((f) => ({ ...f, data: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="field-label">Nome do Encarregado *</label>
+              <input
+                type="text"
+                className="field-input"
+                placeholder="Ex: João Silva"
+                value={form.encarregado}
+                onChange={(e) => setForm((f) => ({ ...f, encarregado: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="field-label">Filial</label>
+              <input
+                type="text"
+                className="field-input"
+                placeholder="Ex: Baixada"
+                value={form.filial}
+                onChange={(e) => setForm((f) => ({ ...f, filial: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="field-label">OS *</label>
+              <input
+                type="text"
+                className="field-input"
+                placeholder="Nº da OS"
+                value={form.os}
+                onChange={(e) => setForm((f) => ({ ...f, os: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <label className="field-label">Descrição do não envio *</label>
+            <textarea
+              className="field-input"
+              style={{ minHeight: 120, resize: "vertical", fontFamily: "inherit" }}
+              placeholder="Informe o motivo do não envio da RO"
+              value={form.naoEnvio}
+              onChange={(e) => setForm((f) => ({ ...f, naoEnvio: e.target.value }))}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              className="btn-primary"
+              disabled={!(form.data && form.encarregado && form.os && form.naoEnvio.trim())}
+              onClick={handleSubmit}
+            >
+              <Plus size={16} /> Registrar não envio
+            </button>
+            <button className="btn-ghost" onClick={() => { setForm(EMPTY_NAO_ENVIO); setEditingId(null); }}>
+              Limpar
+            </button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12, marginTop: 24, marginBottom: 24 }}>
+            <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 18 }}>
+              <div style={{ fontSize: 12, color: "#6B7580", marginBottom: 8 }}>Total de não envios</div>
+              <div className="disp" style={{ fontSize: 32, fontWeight: 800, color: "#E8930C" }}>{naoEnvioSummary.total}</div>
+            </div>
+            <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 18 }}>
+              <div style={{ fontSize: 12, color: "#6B7580", marginBottom: 8 }}>Encarregados hoje</div>
+              <div className="disp" style={{ fontSize: 32, fontWeight: 800, color: "#2F9E52" }}>{naoEnvioSummary.today}</div>
+              <div style={{ fontSize: 11, color: "#8A93A0", marginTop: 6 }}>{naoEnvioSummary.todayLabel}</div>
+            </div>
+            <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 18 }}>
+              <div style={{ fontSize: 12, color: "#6B7580", marginBottom: 8 }}>Encarregados esta semana</div>
+              <div className="disp" style={{ fontSize: 32, fontWeight: 800, color: "#4D8FFF" }}>{naoEnvioSummary.week}</div>
+              <div style={{ fontSize: 11, color: "#8A93A0", marginTop: 6 }}>{naoEnvioSummary.currentWeek}</div>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 24, marginBottom: 24 }}>
+            <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 18 }}>
+              <div style={{ fontSize: 12, color: "#6B7580", marginBottom: 8 }}>Encarregados este mês</div>
+              <div className="disp" style={{ fontSize: 32, fontWeight: 800, color: "#E8EBEE" }}>{naoEnvioSummary.month}</div>
+              <div style={{ fontSize: 11, color: "#8A93A0", marginTop: 6 }}>{naoEnvioSummary.currentMonth}</div>
+            </div>
+          </div>
+
+          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, overflow: "hidden" }}>
+            <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #2E3540" }}>
+              <div className="disp" style={{ fontSize: 15, fontWeight: 700 }}>Registros de não envio</div>
+              <div style={{ color: "#8A93A0", fontSize: 12 }}>{filtered.length} itens</div>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Encarregado</th>
+                    <th>Filial</th>
+                    <th>OS</th>
+                    <th>Não envio</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.length === 0 && (
+                    <tr>
+                      <td colSpan={5} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
+                        Nenhum registro de não envio encontrado.
+                      </td>
+                    </tr>
+                  )}
+                  {pageRows.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.data}</td>
+                      <td>{r.encarregado}</td>
+                      <td>{r.filial || "—"}</td>
+                      <td style={{ color: "#E8930C", fontWeight: 600 }}>{r.os}</td>
+                      <td>{r.naoEnvio}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', borderTop: '1px solid #2E3540' }}>
+              <div style={{ color: '#8A93A0', fontSize: 12 }}>
+                Mostrando {pageRows.length} de {sortedFiltered.length} registros
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  className="btn-ghost"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  style={{ opacity: currentPage === 1 ? 0.5 : 1 }}
+                >
+                  Anterior
+                </button>
+                <span style={{ color: '#E8EBEE', fontSize: 12 }}>
+                  Página {currentPage} de {totalPages}
+                </span>
+                <button
+                  className="btn-ghost"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  style={{ opacity: currentPage === totalPages ? 0.5 : 1 }}
+                >
+                  Próxima
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       {view === "regras" && (
         <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 24, marginBottom: 28 }}>
