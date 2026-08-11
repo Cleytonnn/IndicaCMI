@@ -274,6 +274,17 @@ export default function App() {
     return registroRows.filter((r) => r.data && r.data.slice(0, 7) === dashboardMonth);
   }, [registroRows, dashboardMonth]);
 
+  function getWeekKey(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNr = (target.getUTCDay() + 6) % 7;
+    target.setUTCDate(target.getUTCDate() - dayNr + 3);
+    const firstThursday = new Date(Date.UTC(target.getUTCFullYear(), 0, 4));
+    const weekNumber = 1 + Math.round(((target - firstThursday) / 86400000 - 3) / 7);
+    return `${target.getUTCFullYear()}-${String(weekNumber).padStart(2, "0")}`;
+  }
+
   const naoEnvioSummary = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
     const currentWeek = getWeekKey(today);
@@ -318,17 +329,6 @@ export default function App() {
       return `${day}/${month}/${year}`;
     }
     return value;
-  };
-
-  const getWeekKey = (value) => {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNr = (target.getUTCDay() + 6) % 7;
-    target.setUTCDate(target.getUTCDate() - dayNr + 3);
-    const firstThursday = new Date(Date.UTC(target.getUTCFullYear(), 0, 4));
-    const weekNumber = 1 + Math.round(((target - firstThursday) / 86400000 - 3) / 7);
-    return `${target.getUTCFullYear()}-${String(weekNumber).padStart(2, "0")}`;
   };
 
   const compareDateDesc = (a, b) => {
