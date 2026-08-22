@@ -12,6 +12,7 @@ import {
 
 const EMPTY = {
   data: "",
+  contrato: "LIGHT",
   encarregado: "",
   os: "",
   tipoServico: "",
@@ -86,6 +87,11 @@ const CHART_COLORS = {
   accent2: "#4D8FFF",
 };
 
+const INSPECAO_POR_CONTRATO = {
+  LIGHT: ["Proteção", "RDA"],
+  ENEL: ["Obras", "Emergencial"],
+};
+
 const PROCESSO_OPTIONS = {
   RDA: [
     "BLINDAGEM (RDA)",
@@ -97,6 +103,8 @@ const PROCESSO_OPTIONS = {
     "OPERAÇÃO (RDA)",
   ],
   Proteção: ["CORE", "LIDE", "ANEXO IV", "LNC", "PODA", "REN"],
+  Obras: ["OBRAS"],
+  Emergencial: ["EMERGENCIAL"],
 };
 
 const getRuleImage = (key) => RULE_IMAGES[key] || "";
@@ -150,6 +158,19 @@ export default function App() {
 
   const update = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 
+  const handleContratoChange = (contrato) => {
+    setForm((f) => {
+      const validOptions = INSPECAO_POR_CONTRATO[contrato] || [];
+      const isCurrentValid = validOptions.includes(f.tipoInspecao);
+      return {
+        ...f,
+        contrato,
+        tipoInspecao: isCurrentValid ? f.tipoInspecao : "",
+        processo: isCurrentValid ? f.processo : "",
+      };
+    });
+  };
+
   const handleTipoInspecaoChange = (value) => {
     setForm((f) => ({
       ...f,
@@ -158,11 +179,7 @@ export default function App() {
     }));
   };
 
-  const processoOptions = form.tipoInspecao === "Proteção"
-    ? PROCESSO_OPTIONS.Proteção
-    : form.tipoInspecao === "RDA"
-      ? PROCESSO_OPTIONS.RDA
-      : [];
+  const processoOptions = PROCESSO_OPTIONS[form.tipoInspecao] || [];
 
   const requiredOk =
     form.data &&
@@ -205,7 +222,16 @@ export default function App() {
   };
 
   const handleEdit = (row) => {
-    setForm(row);
+    const inferredContrato = row.contrato || (
+      row.tipoInspecao === "Obras" || row.tipoInspecao === "Emergencial" || row.tipoInspecao === "OBRAS" || row.tipoInspecao === "EMERGENCIAL"
+        ? "ENEL"
+        : "LIGHT"
+    );
+    setForm({
+      ...EMPTY,
+      ...row,
+      contrato: inferredContrato,
+    });
     setEditingId(row.id);
   };
 
@@ -346,7 +372,7 @@ export default function App() {
     if (!filter.trim()) return subset;
     const q = filter.toLowerCase();
     return subset.filter((r) => {
-      const fields = [r.os, r.encarregado, r.regional, r.tipoServico, r.processo, r.filial, r.naoEnvio, r.tipoRegistro];
+      const fields = [r.os, r.encarregado, r.contrato, r.regional, r.tipoServico, r.processo, r.filial, r.naoEnvio, r.tipoRegistro, r.tipoInspecao];
       return fields.join(" ").toLowerCase().includes(q);
     });
   }, [view, registroRows, naoEnvioRows, filter, monthFilter]);
@@ -387,6 +413,7 @@ export default function App() {
       const selectedRules = Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]);
       return {
         "Data": formatDateForExport(r.data),
+        "Contrato": r.contrato || (r.tipoInspecao === "Obras" || r.tipoInspecao === "Emergencial" ? "ENEL" : "LIGHT"),
         "Nome do Encarregado": r.encarregado,
         "OS": r.os,
         "Tipo de Serviço": r.tipoServico,
@@ -409,7 +436,7 @@ export default function App() {
     });
     const ws = XLSX.utils.json_to_sheet(data);
     ws["!cols"] = [
-      { wch: 12 }, { wch: 22 }, { wch: 12 }, { wch: 20 }, { wch: 14 },
+      { wch: 12 }, { wch: 14 }, { wch: 22 }, { wch: 12 }, { wch: 20 }, { wch: 14 },
       { wch: 20 }, { wch: 16 }, { wch: 30 }, { wch: 34 }, { wch: 20 },
       { wch: 30 }, { wch: 24 }, { wch: 20 }, { wch: 26 },
     ];
@@ -427,7 +454,7 @@ export default function App() {
     let y = margin;
     const headers = view === "naoEnvio"
       ? ["Data", "Encarregado", "Filial", "OS", "Tipo de registro", "Não envio"]
-      : ["Data", "Encarregado", "OS", "Tipo de Serviço", "Regional", "Status", "Não conformidade", "Agente da inspeção", "Tipo de inspeção", "Eletricista líder", "Eletricista", "Regras de Ouro"];
+      : ["Data", "Contrato", "Encarregado", "OS", "Tipo de Serviço", "Regional", "Status", "Não conformidade", "Agente da inspeção", "Tipo de inspeção", "Eletricista líder", "Eletricista", "Regras de Ouro"];
     doc.setFontSize(12);
     doc.text(view === "naoEnvio" ? "Relatório de Não Envio de RO" : "Relatório de Registros", margin, y);
     y += lineHeight * 1.5;
@@ -456,6 +483,7 @@ export default function App() {
         const selectedRules = Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]).join("; ");
         const row = [
           formatDateForExport(r.data) || "-",
+          r.contrato || (r.tipoInspecao === "Obras" || r.tipoInspecao === "Emergencial" ? "ENEL" : "LIGHT"),
           r.encarregado || "-",
           r.os || "-",
           r.tipoServico || "-",
@@ -523,8 +551,10 @@ export default function App() {
     const goldRuleRate = dashboardRows.length ? Math.round((goldRuleCount / dashboardRows.length) * 100) : 0;
     const protecaoCount = dashboardRows.filter((r) => r.tipoInspecao === "Proteção").length;
     const rdaCount = dashboardRows.filter((r) => r.tipoInspecao === "RDA").length;
+    const obrasCount = dashboardRows.filter((r) => r.tipoInspecao === "Obras" || r.tipoInspecao === "OBRAS").length;
+    const emergencialCount = dashboardRows.filter((r) => r.tipoInspecao === "Emergencial" || r.tipoInspecao === "EMERGENCIAL").length;
 
-    return { regionalData, tipoData, fotoData, dateData, topEncarregados, taxaConformidade, naoEnviadas, naoConforme, goldRuleCount, goldRuleRate, protecaoCount, rdaCount };
+    return { regionalData, tipoData, fotoData, dateData, topEncarregados, taxaConformidade, naoEnviadas, naoConforme, goldRuleCount, goldRuleRate, protecaoCount, rdaCount, obrasCount, emergencialCount };
   }, [dashboardRows]);
 
   const ruleCounts = useMemo(() => {
@@ -722,7 +752,7 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
             <div>
               <label className="field-label">Quem inspecionou</label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -747,9 +777,32 @@ export default function App() {
               </div>
             </div>
             <div>
-              <label className="field-label">Tipo de inspeção</label>
+              <label className="field-label">Contrato</label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                {['Proteção', 'RDA'].map((opt) => {
+                {['LIGHT', 'ENEL'].map((opt) => {
+                  const active = form.contrato === opt;
+                  return (
+                    <div
+                      key={opt}
+                      className="radio-pill"
+                      onClick={() => handleContratoChange(opt)}
+                      style={{
+                        background: active ? "#1F6B3A" : "#1C2126",
+                        borderColor: active ? "#2F9E52" : "#2E3540",
+                        color: active ? "#EAF4EE" : "#8A93A0",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}
+                    >
+                      {opt}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <label className="field-label">Tipo de inspeção</label>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${((INSPECAO_POR_CONTRATO[form.contrato] || []).length) || 1}, 1fr)`, gap: 8 }}>
+                {(INSPECAO_POR_CONTRATO[form.contrato] || []).map((opt) => {
                   const active = form.tipoInspecao === opt;
                   return (
                     <div
@@ -768,6 +821,9 @@ export default function App() {
                   );
                 })}
               </div>
+              {!form.contrato && (
+                <div style={{ fontSize: 11, color: "#6B7580", marginTop: 4 }}>Selecione o contrato</div>
+              )}
             </div>
             <div>
               <label className="field-label">Observação</label>
@@ -902,6 +958,7 @@ export default function App() {
               <thead>
                 <tr>
                   <th>Data</th>
+                  <th>Contrato</th>
                   <th>Encarregado</th>
                   <th>OS</th>
                   <th>Tipo de Serviço</th>
@@ -921,16 +978,27 @@ export default function App() {
               <tbody>
                 {pageRows.length === 0 && (
                   <tr>
-                  <td colSpan={15} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
+                  <td colSpan={16} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
                       {rows.length === 0 ? "Nenhum registro ainda. Preencha o formulário acima para começar." : "Nenhum resultado para esse filtro."}
                     </td>
                   </tr>
                 )}
                 {pageRows.map((r) => {
                   const fs = FOTO_STYLES[r.registroFoto];
+                  const cto = r.contrato || (r.tipoInspecao === "Obras" || r.tipoInspecao === "Emergencial" ? "ENEL" : "LIGHT");
                   return (
                     <tr key={r.id}>
                       <td>{r.data}</td>
+                      <td>
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
+                          background: cto === "ENEL" ? "#2B1A4A" : "#1B2F3E",
+                          color: cto === "ENEL" ? "#C084FC" : "#38BDF8",
+                          border: `1px solid ${cto === "ENEL" ? "#7E22CE" : "#0284C7"}`
+                        }}>
+                          {cto}
+                        </span>
+                      </td>
                       <td>{r.encarregado}</td>
                       <td style={{ color: "#E8930C", fontWeight: 600 }}>{r.os}</td>
                       <td>{r.tipoServico || "—"}</td>
@@ -1368,15 +1436,25 @@ function DashboardView({ dash, rowsCount, monthOptions, dashboardMonth, setDashb
             <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#E8930C" }}>{dash.goldRuleCount}</div>
             <div style={{ fontSize: 11, color: "#8A93A0" }}>{dash.goldRuleRate}% dos registros</div>
           </div>
-          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 170 }}>
+          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
             <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Proteção</div>
             <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#2F9E52" }}>{dash.protecaoCount}</div>
-            <div style={{ fontSize: 11, color: "#8A93A0" }}>registros</div>
+            <div style={{ fontSize: 11, color: "#8A93A0" }}>registros (LIGHT)</div>
           </div>
-          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 170 }}>
+          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
             <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>RDA</div>
             <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#4D8FFF" }}>{dash.rdaCount}</div>
-            <div style={{ fontSize: 11, color: "#8A93A0" }}>registros</div>
+            <div style={{ fontSize: 11, color: "#8A93A0" }}>registros (LIGHT)</div>
+          </div>
+          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
+            <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Obras</div>
+            <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#E8930C" }}>{dash.obrasCount}</div>
+            <div style={{ fontSize: 11, color: "#8A93A0" }}>registros (ENEL)</div>
+          </div>
+          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
+            <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Emergencial</div>
+            <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#F97316" }}>{dash.emergencialCount}</div>
+            <div style={{ fontSize: 11, color: "#8A93A0" }}>registros (ENEL)</div>
           </div>
         </div>
       </div>
