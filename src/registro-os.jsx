@@ -121,6 +121,7 @@ export default function App() {
   const [filter, setFilter] = useState("");
   const [monthFilter, setMonthFilter] = useState("all");
   const [dashboardMonth, setDashboardMonth] = useState("all");
+  const [dashboardContrato, setDashboardContrato] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 20;
 
@@ -296,8 +297,37 @@ export default function App() {
   }, [view, naoEnvioRows, registroRows]);
 
   const dashboardRows = useMemo(() => {
-    if (dashboardMonth === "all") return registroRows;
-    return registroRows.filter((r) => r.data && r.data.slice(0, 7) === dashboardMonth);
+    let list = registroRows;
+    if (dashboardMonth !== "all") {
+      list = list.filter((r) => r.data && r.data.slice(0, 7) === dashboardMonth);
+    }
+    if (dashboardContrato !== "all") {
+      list = list.filter((r) => {
+        const cto = r.contrato || (r.tipoInspecao === "Obras" || r.tipoInspecao === "Emergencial" ? "ENEL" : "LIGHT");
+        return cto === dashboardContrato;
+      });
+    }
+    return list;
+  }, [registroRows, dashboardMonth, dashboardContrato]);
+
+  const contratoStats = useMemo(() => {
+    const monthList = dashboardMonth === "all"
+      ? registroRows
+      : registroRows.filter((r) => r.data && r.data.slice(0, 7) === dashboardMonth);
+
+    let lightCount = 0;
+    let enelCount = 0;
+    monthList.forEach((r) => {
+      const cto = r.contrato || (r.tipoInspecao === "Obras" || r.tipoInspecao === "Emergencial" ? "ENEL" : "LIGHT");
+      if (cto === "ENEL") enelCount += 1;
+      else lightCount += 1;
+    });
+
+    return {
+      total: monthList.length,
+      light: lightCount,
+      enel: enelCount,
+    };
   }, [registroRows, dashboardMonth]);
 
   function getWeekKey(value) {
@@ -1102,6 +1132,9 @@ export default function App() {
           monthOptions={monthOptions}
           dashboardMonth={dashboardMonth}
           setDashboardMonth={setDashboardMonth}
+          dashboardContrato={dashboardContrato}
+          setDashboardContrato={setDashboardContrato}
+          contratoStats={contratoStats}
         />
       )}
       {view === "naoEnvio" && (
@@ -1401,65 +1434,123 @@ export default function App() {
   );
 }
 
-function DashboardView({ dash, rowsCount, monthOptions, dashboardMonth, setDashboardMonth }) {
-  if (rowsCount === 0) {
-    return (
-      <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: "60px 24px", textAlign: "center", color: "#6B7580" }}>
-        Nenhum dado ainda. Adicione registros na aba Registro para ver o dashboard.
-      </div>
-    );
-  }
-
+function DashboardView({
+  dash,
+  rowsCount,
+  monthOptions,
+  dashboardMonth,
+  setDashboardMonth,
+  dashboardContrato,
+  setDashboardContrato,
+  contratoStats,
+}) {
   const cardStyle = { background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 20 };
   const titleStyle = { fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#8A93A0", marginBottom: 16 };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 12, color: "#6B7580", textTransform: "uppercase", letterSpacing: "0.08em" }}>Filtrar mês</span>
-          <select
-            value={dashboardMonth}
-            onChange={(e) => setDashboardMonth(e.target.value)}
-            className="field-input"
-            style={{ maxWidth: 180 }}
-          >
-            <option value="all">Todos os meses</option>
-            {monthOptions.map((month) => (
-              <option key={month} value={month}>{`${month.slice(5)}/${month.slice(0, 4)}`}</option>
-            ))}
-          </select>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, color: "#6B7580", textTransform: "uppercase", letterSpacing: "0.08em" }}>Filtrar mês</span>
+            <select
+              value={dashboardMonth}
+              onChange={(e) => setDashboardMonth(e.target.value)}
+              className="field-input"
+              style={{ maxWidth: 180 }}
+            >
+              <option value="all">Todos os meses</option>
+              {monthOptions.map((month) => (
+                <option key={month} value={month}>{`${month.slice(5)}/${month.slice(0, 4)}`}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, color: "#6B7580", textTransform: "uppercase", letterSpacing: "0.08em" }}>Contrato</span>
+            <div style={{ display: "flex", gap: 6, background: "#1C2126", padding: 3, borderRadius: 6, border: "1px solid #2E3540" }}>
+              <button
+                onClick={() => setDashboardContrato("all")}
+                style={{
+                  border: "none", cursor: "pointer", padding: "6px 12px", borderRadius: 4, fontSize: 12, fontWeight: 700,
+                  background: dashboardContrato === "all" ? "#E8930C" : "transparent",
+                  color: dashboardContrato === "all" ? "#14181C" : "#8A93A0",
+                  transition: "all 0.15s",
+                }}
+              >
+                Todos ({contratoStats.total})
+              </button>
+              <button
+                onClick={() => setDashboardContrato("LIGHT")}
+                style={{
+                  border: "none", cursor: "pointer", padding: "6px 12px", borderRadius: 4, fontSize: 12, fontWeight: 700,
+                  background: dashboardContrato === "LIGHT" ? "#38BDF8" : "transparent",
+                  color: dashboardContrato === "LIGHT" ? "#14181C" : "#8A93A0",
+                  transition: "all 0.15s",
+                }}
+              >
+                LIGHT ({contratoStats.light})
+              </button>
+              <button
+                onClick={() => setDashboardContrato("ENEL")}
+                style={{
+                  border: "none", cursor: "pointer", padding: "6px 12px", borderRadius: 4, fontSize: 12, fontWeight: 700,
+                  background: dashboardContrato === "ENEL" ? "#C084FC" : "transparent",
+                  color: dashboardContrato === "ENEL" ? "#14181C" : "#8A93A0",
+                  transition: "all 0.15s",
+                }}
+              >
+                ENEL ({contratoStats.enel})
+              </button>
+            </div>
+          </div>
         </div>
+
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 170 }}>
+          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
             <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Regras de Ouro</div>
             <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#E8930C" }}>{dash.goldRuleCount}</div>
             <div style={{ fontSize: 11, color: "#8A93A0" }}>{dash.goldRuleRate}% dos registros</div>
           </div>
-          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
-            <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Proteção</div>
-            <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#2F9E52" }}>{dash.protecaoCount}</div>
-            <div style={{ fontSize: 11, color: "#8A93A0" }}>registros (LIGHT)</div>
-          </div>
-          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
-            <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>RDA</div>
-            <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#4D8FFF" }}>{dash.rdaCount}</div>
-            <div style={{ fontSize: 11, color: "#8A93A0" }}>registros (LIGHT)</div>
-          </div>
-          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
-            <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Obras</div>
-            <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#E8930C" }}>{dash.obrasCount}</div>
-            <div style={{ fontSize: 11, color: "#8A93A0" }}>registros (ENEL)</div>
-          </div>
-          <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
-            <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Emergencial</div>
-            <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#F97316" }}>{dash.emergencialCount}</div>
-            <div style={{ fontSize: 11, color: "#8A93A0" }}>registros (ENEL)</div>
-          </div>
+          {(dashboardContrato === "all" || dashboardContrato === "LIGHT") && (
+            <>
+              <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
+                <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Proteção</div>
+                <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#2F9E52" }}>{dash.protecaoCount}</div>
+                <div style={{ fontSize: 11, color: "#8A93A0" }}>registros (LIGHT)</div>
+              </div>
+              <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
+                <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>RDA</div>
+                <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#4D8FFF" }}>{dash.rdaCount}</div>
+                <div style={{ fontSize: 11, color: "#8A93A0" }}>registros (LIGHT)</div>
+              </div>
+            </>
+          )}
+          {(dashboardContrato === "all" || dashboardContrato === "ENEL") && (
+            <>
+              <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
+                <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Obras</div>
+                <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#E8930C" }}>{dash.obrasCount}</div>
+                <div style={{ fontSize: 11, color: "#8A93A0" }}>registros (ENEL)</div>
+              </div>
+              <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
+                <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Emergencial</div>
+                <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#F97316" }}>{dash.emergencialCount}</div>
+                <div style={{ fontSize: 11, color: "#8A93A0" }}>registros (ENEL)</div>
+              </div>
+            </>
+          )}
         </div>
       </div>
-      {/* KPI row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+
+      {rowsCount === 0 ? (
+        <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: "60px 24px", textAlign: "center", color: "#6B7580" }}>
+          Nenhum registro encontrado para o filtro selecionado.
+        </div>
+      ) : (
+        <>
+          {/* KPI row */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
         <div style={cardStyle}>
           <div style={titleStyle}>Taxa de conformidade</div>
           <div className="disp" style={{ fontSize: 38, fontWeight: 800, color: dash.taxaConformidade >= 80 ? "#2F9E52" : dash.taxaConformidade >= 50 ? "#E8930C" : "#D64545" }}>
@@ -1544,6 +1635,8 @@ function DashboardView({ dash, rowsCount, monthOptions, dashboardMonth, setDashb
           </ResponsiveContainer>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
