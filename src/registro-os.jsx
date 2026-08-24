@@ -87,9 +87,14 @@ const CHART_COLORS = {
   accent2: "#4D8FFF",
 };
 
+const REGIONAIS_POR_CONTRATO = {
+  LIGHT: ["Baixada", "Oeste"],
+  ENEL: ["Cantagalo", "Macaé", "Pádua", "Angra"],
+};
+
 const INSPECAO_POR_CONTRATO = {
   LIGHT: ["Proteção", "RDA"],
-  ENEL: ["Obras", "Emergencial"],
+  ENEL: ["Obras", "Emergencial", "Comercial"],
 };
 
 const PROCESSO_OPTIONS = {
@@ -105,9 +110,17 @@ const PROCESSO_OPTIONS = {
   Proteção: ["CORE", "LIDE", "ANEXO IV", "LNC", "PODA", "REN"],
   Obras: ["OBRAS"],
   Emergencial: ["EMERGENCIAL"],
+  Comercial: ["COMERCIAL"],
 };
 
 const getRuleImage = (key) => RULE_IMAGES[key] || "";
+
+const getContrato = (r) => {
+  if (r?.contrato) return r.contrato;
+  const isEnel = ["Obras", "Emergencial", "Comercial", "OBRAS", "EMERGENCIAL", "COMERCIAL"].includes(r?.tipoInspecao) ||
+    ["Cantagalo", "Macaé", "Pádua", "Angra", "CANTAGALO", "MACAÉ", "PADUA", "ANGRA"].includes(r?.regional);
+  return isEnel ? "ENEL" : "LIGHT";
+};
 
 const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
   ? 'http://localhost:3000'
@@ -161,13 +174,17 @@ export default function App() {
 
   const handleContratoChange = (contrato) => {
     setForm((f) => {
-      const validOptions = INSPECAO_POR_CONTRATO[contrato] || [];
-      const isCurrentValid = validOptions.includes(f.tipoInspecao);
+      const validInspecoes = INSPECAO_POR_CONTRATO[contrato] || [];
+      const isCurrentInspecaoValid = validInspecoes.includes(f.tipoInspecao);
+      const validRegionais = REGIONAIS_POR_CONTRATO[contrato] || [];
+      const isCurrentRegionalValid = validRegionais.includes(f.regional);
+
       return {
         ...f,
         contrato,
-        tipoInspecao: isCurrentValid ? f.tipoInspecao : "",
-        processo: isCurrentValid ? f.processo : "",
+        regional: isCurrentRegionalValid ? f.regional : "",
+        tipoInspecao: isCurrentInspecaoValid ? f.tipoInspecao : "",
+        processo: isCurrentInspecaoValid ? f.processo : "",
       };
     });
   };
@@ -223,11 +240,10 @@ export default function App() {
   };
 
   const handleEdit = (row) => {
-    const inferredContrato = row.contrato || (
-      row.tipoInspecao === "Obras" || row.tipoInspecao === "Emergencial" || row.tipoInspecao === "OBRAS" || row.tipoInspecao === "EMERGENCIAL"
-        ? "ENEL"
-        : "LIGHT"
-    );
+    const isEnel = row.contrato === "ENEL" ||
+      ["Obras", "Emergencial", "Comercial", "OBRAS", "EMERGENCIAL", "COMERCIAL"].includes(row.tipoInspecao) ||
+      ["Cantagalo", "Macaé", "Pádua", "Angra", "CANTAGALO", "MACAÉ", "PADUA", "ANGRA"].includes(row.regional);
+    const inferredContrato = row.contrato || (isEnel ? "ENEL" : "LIGHT");
     setForm({
       ...EMPTY,
       ...row,
@@ -302,10 +318,7 @@ export default function App() {
       list = list.filter((r) => r.data && r.data.slice(0, 7) === dashboardMonth);
     }
     if (dashboardContrato !== "all") {
-      list = list.filter((r) => {
-        const cto = r.contrato || (r.tipoInspecao === "Obras" || r.tipoInspecao === "Emergencial" ? "ENEL" : "LIGHT");
-        return cto === dashboardContrato;
-      });
+      list = list.filter((r) => getContrato(r) === dashboardContrato);
     }
     return list;
   }, [registroRows, dashboardMonth, dashboardContrato]);
@@ -318,8 +331,7 @@ export default function App() {
     let lightCount = 0;
     let enelCount = 0;
     monthList.forEach((r) => {
-      const cto = r.contrato || (r.tipoInspecao === "Obras" || r.tipoInspecao === "Emergencial" ? "ENEL" : "LIGHT");
-      if (cto === "ENEL") enelCount += 1;
+      if (getContrato(r) === "ENEL") enelCount += 1;
       else lightCount += 1;
     });
 
@@ -443,7 +455,7 @@ export default function App() {
       const selectedRules = Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]);
       return {
         "Data": formatDateForExport(r.data),
-        "Contrato": r.contrato || (r.tipoInspecao === "Obras" || r.tipoInspecao === "Emergencial" ? "ENEL" : "LIGHT"),
+        "Contrato": getContrato(r),
         "Nome do Encarregado": r.encarregado,
         "OS": r.os,
         "Tipo de Serviço": r.tipoServico,
@@ -513,7 +525,7 @@ export default function App() {
         const selectedRules = Object.entries(r.regrasOuro || {}).filter(([, value]) => value).map(([key]) => RULES_DE_OURO[key]).join("; ");
         const row = [
           formatDateForExport(r.data) || "-",
-          r.contrato || (r.tipoInspecao === "Obras" || r.tipoInspecao === "Emergencial" ? "ENEL" : "LIGHT"),
+          getContrato(r),
           r.encarregado || "-",
           r.os || "-",
           r.tipoServico || "-",
@@ -583,8 +595,9 @@ export default function App() {
     const rdaCount = dashboardRows.filter((r) => r.tipoInspecao === "RDA").length;
     const obrasCount = dashboardRows.filter((r) => r.tipoInspecao === "Obras" || r.tipoInspecao === "OBRAS").length;
     const emergencialCount = dashboardRows.filter((r) => r.tipoInspecao === "Emergencial" || r.tipoInspecao === "EMERGENCIAL").length;
+    const comercialCount = dashboardRows.filter((r) => r.tipoInspecao === "Comercial" || r.tipoInspecao === "COMERCIAL").length;
 
-    return { regionalData, tipoData, fotoData, dateData, topEncarregados, taxaConformidade, naoEnviadas, naoConforme, goldRuleCount, goldRuleRate, protecaoCount, rdaCount, obrasCount, emergencialCount };
+    return { regionalData, tipoData, fotoData, dateData, topEncarregados, taxaConformidade, naoEnviadas, naoConforme, goldRuleCount, goldRuleRate, protecaoCount, rdaCount, obrasCount, emergencialCount, comercialCount };
   }, [dashboardRows]);
 
   const ruleCounts = useMemo(() => {
@@ -737,7 +750,7 @@ export default function App() {
             <div>
               <label className="field-label">Regional</label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                {['Baixada', 'Oeste'].map((opt) => {
+                {(REGIONAIS_POR_CONTRATO[form.contrato] || []).map((opt) => {
                   const active = form.regional === opt;
                   return (
                     <div
@@ -749,6 +762,7 @@ export default function App() {
                         borderColor: active ? "#2F9E52" : "#2E3540",
                         color: active ? "#EAF4EE" : "#8A93A0",
                         display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 12, padding: "8px 6px",
                       }}
                     >
                       {opt}
@@ -756,6 +770,9 @@ export default function App() {
                   );
                 })}
               </div>
+              {!form.contrato && (
+                <div style={{ fontSize: 11, color: "#6B7580", marginTop: 4 }}>Selecione o contrato</div>
+              )}
             </div>
             <div>
               <label className="field-label">Processo</label>
@@ -1015,7 +1032,7 @@ export default function App() {
                 )}
                 {pageRows.map((r) => {
                   const fs = FOTO_STYLES[r.registroFoto];
-                  const cto = r.contrato || (r.tipoInspecao === "Obras" || r.tipoInspecao === "Emergencial" ? "ENEL" : "LIGHT");
+                  const cto = getContrato(r);
                   return (
                     <tr key={r.id}>
                       <td>{r.data}</td>
@@ -1536,6 +1553,11 @@ function DashboardView({
               <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
                 <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Emergencial</div>
                 <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#F97316" }}>{dash.emergencialCount}</div>
+                <div style={{ fontSize: 11, color: "#8A93A0" }}>registros (ENEL)</div>
+              </div>
+              <div style={{ background: "#171B20", border: "1px solid #2E3540", borderRadius: 8, padding: 16, minWidth: 150 }}>
+                <div style={{ fontSize: 11, color: "#6B7580", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Comercial</div>
+                <div className="disp" style={{ fontSize: 26, fontWeight: 800, color: "#10B981" }}>{dash.comercialCount}</div>
                 <div style={{ fontSize: 11, color: "#8A93A0" }}>registros (ENEL)</div>
               </div>
             </>
