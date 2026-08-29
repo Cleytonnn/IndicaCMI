@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   Zap, Plus, Trash2, Download, Camera, CheckCircle2, XCircle,
-  LayoutGrid, ClipboardList, AlertTriangle, Video, UserPlus, Film,
+  LayoutGrid, ClipboardList, AlertTriangle, UserPlus, Film,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -138,7 +139,7 @@ const TRATATIVAS_OPTIONS = [
   "ADVERTÊNCIA",
   "SUSPENSÃO",
   "RECICLAGEM",
-  "APLICAR POLÍTICA DE CONSEQUÊNCIA",
+  "APLICAR POLITICA DE CONSEQUÊNCIA",
 ];
 
 const RULES_DE_OURO = {
@@ -200,6 +201,17 @@ const PROCESSO_OPTIONS = {
   Comercial: ["COMERCIAL"],
 };
 
+const generateId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 const getRuleImage = (key) => RULE_IMAGES[key] || "";
 
 const getContrato = (r) => {
@@ -207,6 +219,33 @@ const getContrato = (r) => {
   const isEnel = ["Obras", "Emergencial", "Comercial", "OBRAS", "EMERGENCIAL", "COMERCIAL"].includes(r?.tipoInspecao) ||
     ["Cantagalo", "Macaé", "Pádua", "Angra", "CANTAGALO", "MACAÉ", "PADUA", "ANGRA"].includes(r?.regional);
   return isEnel ? "ENEL" : "LIGHT";
+};
+
+const compareDateDesc = (a, b) => {
+  const da = a?.data || a?.dataFilmagem;
+  const db = b?.data || b?.dataFilmagem;
+  if (!da && !db) return 0;
+  if (!da) return 1;
+  if (!db) return -1;
+  return new Date(db) - new Date(da);
+};
+
+const formatMonthLabel = (value) => {
+  if (!value || value === "all") return "Todos os meses";
+  const parts = value.split("-");
+  if (parts.length === 2) {
+    return `${parts[1]}/${parts[0]}`;
+  }
+  return value;
+};
+
+const formatDateForExport = (value) => {
+  if (!value) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-");
+    return `${day}/${month}/${year}`;
+  }
+  return value;
 };
 
 const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
@@ -232,6 +271,16 @@ export default function App() {
   const naoEnvioRows = useMemo(() => rows.filter((r) => r.tipoRegistro === "naoEnvio"), [rows]);
   const monitoriaRows = useMemo(() => rows.filter((r) => r.tipoRegistro === "monitoria"), [rows]);
 
+  const totals = useMemo(() => {
+    let conforme = 0;
+    let naoConforme = 0;
+    registroRows.forEach((r) => {
+      if (r.conformidade === "Conforme") conforme++;
+      else if (r.conformidade === "Não conforme") naoConforme++;
+    });
+    return { conforme, naoConforme };
+  }, [registroRows]);
+
   useEffect(() => {
     const fetchRows = async () => {
       try {
@@ -248,7 +297,7 @@ export default function App() {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) setRows(parsed);
+          if (Array.isArray(parsed)) setRows(parsed.slice().sort(compareDateDesc));
         } catch (error) {
           console.warn("Falha ao carregar histórico de registros:", error);
         }
@@ -342,7 +391,7 @@ export default function App() {
     if (isNaoEnvio && !requiredNaoEnvio) return;
     if (!isNaoEnvio && !requiredOk) return;
 
-    const payload = editingId ? { ...form, id: editingId } : { ...form, id: crypto.randomUUID() };
+    const payload = editingId ? { ...form, id: editingId } : { ...form, id: generateId() };
     try {
       const res = await fetch(
         editingId ? `${API_BASE}/api/records/${payload.id}` : `${API_BASE}/api/records`,
@@ -379,7 +428,7 @@ export default function App() {
 
     const payload = editingId 
       ? { ...formMonitoria, id: editingId, data: formMonitoria.dataFilmagem }
-      : { ...formMonitoria, id: crypto.randomUUID(), data: formMonitoria.dataFilmagem };
+      : { ...formMonitoria, id: generateId(), data: formMonitoria.dataFilmagem };
 
     try {
       const res = await fetch(
@@ -597,30 +646,6 @@ export default function App() {
     };
   }, [naoEnvioRows]);
 
-  const formatMonthLabel = (value) => {
-    if (!value || value === "all") return "Todos os meses";
-    const [year, month] = value.split("-");
-    return `${month}/${year}`;
-  };
-
-  const formatDateForExport = (value) => {
-    if (!value) return "";
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      const [year, month, day] = value.split("-");
-      return `${day}/${month}/${year}`;
-    }
-    return value;
-  };
-
-  const compareDateDesc = (a, b) => {
-    const da = a?.data || a?.dataFilmagem;
-    const db = b?.data || b?.dataFilmagem;
-    if (!da && !db) return 0;
-    if (!da) return 1;
-    if (!db) return -1;
-    return new Date(db) - new Date(da);
-  };
-
   const filtered = useMemo(() => {
     let subset = view === "naoEnvio" 
       ? naoEnvioRows 
@@ -669,6 +694,175 @@ export default function App() {
     return sortedFiltered.slice(start, start + PAGE_SIZE);
   }, [sortedFiltered, currentPage]);
 
+  const ruleCounts = useMemo(() => {
+    const counts = {};
+    Object.keys(RULES_DE_OURO).forEach((k) => {
+      counts[k] = 0;
+    });
+    registroRows.forEach((r) => {
+      if (r.regrasOuro) {
+        Object.entries(r.regrasOuro).forEach(([k, v]) => {
+          if (v && counts[k] !== undefined) {
+            counts[k]++;
+          }
+        });
+      }
+    });
+    return counts;
+  }, [registroRows]);
+
+  const dash = useMemo(() => {
+    const total = dashboardRows.length;
+    let conformeCount = 0;
+    let naoConformeCount = 0;
+    let naoEnviadas = 0;
+    let goldRuleCount = 0;
+
+    const regionalMap = {};
+    const fotoMap = { "Enviado": 0, "Enviado com Não conformidade": 0, "Não enviado": 0 };
+    const dateMap = {};
+    const encarregadoMap = {};
+
+    let protecaoCount = 0;
+    let rdaCount = 0;
+    let obrasCount = 0;
+    let emergencialCount = 0;
+    let comercialCount = 0;
+
+    dashboardRows.forEach((r) => {
+      if (r.conformidade === "Conforme") conformeCount++;
+      if (r.conformidade === "Não conforme") naoConformeCount++;
+      if (r.registroFoto === "Não enviado") naoEnviadas++;
+
+      const hasGold = r.regrasOuro && Object.values(r.regrasOuro).some(Boolean);
+      if (hasGold) goldRuleCount++;
+
+      // Inspecao counts
+      if (r.tipoInspecao === "Proteção" || r.tipoInspecao === "PROTEÇÃO") protecaoCount++;
+      if (r.tipoInspecao === "RDA") rdaCount++;
+      if (r.tipoInspecao === "Obras" || r.tipoInspecao === "OBRAS") obrasCount++;
+      if (r.tipoInspecao === "Emergencial" || r.tipoInspecao === "EMERGENCIAL") emergencialCount++;
+      if (r.tipoInspecao === "Comercial" || r.tipoInspecao === "COMERCIAL") comercialCount++;
+
+      // Regional
+      const reg = r.regional || "Não informado";
+      if (!regionalMap[reg]) regionalMap[reg] = { name: reg, Conforme: 0, "Não conforme": 0 };
+      if (r.conformidade === "Conforme") regionalMap[reg].Conforme++;
+      else if (r.conformidade === "Não conforme") regionalMap[reg]["Não conforme"]++;
+
+      // Foto
+      if (r.registroFoto && fotoMap[r.registroFoto] !== undefined) {
+        fotoMap[r.registroFoto]++;
+      }
+
+      // Date
+      if (r.data) {
+        if (!dateMap[r.data]) dateMap[r.data] = { date: r.data.slice(5), Conforme: 0, "Não conforme": 0 };
+        if (r.conformidade === "Conforme") dateMap[r.data].Conforme++;
+        else if (r.conformidade === "Não conforme") dateMap[r.data]["Não conforme"]++;
+      }
+
+      // Encarregado
+      const enc = r.encarregado?.trim();
+      if (enc) {
+        encarregadoMap[enc] = (encarregadoMap[enc] || 0) + 1;
+      }
+    });
+
+    const taxaConformidade = total > 0 ? Math.round((conformeCount / total) * 100) : 100;
+    const goldRuleRate = total > 0 ? Math.round((goldRuleCount / total) * 100) : 0;
+
+    const regionalData = Object.values(regionalMap);
+    const fotoData = Object.entries(fotoMap).map(([name, value]) => ({ name, value }));
+    const dateData = Object.entries(dateMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => v);
+    const topEncarregados = Object.entries(encarregadoMap)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+
+    return {
+      taxaConformidade,
+      naoConforme: naoConformeCount,
+      naoEnviadas,
+      goldRuleCount,
+      goldRuleRate,
+      protecaoCount,
+      rdaCount,
+      obrasCount,
+      emergencialCount,
+      comercialCount,
+      regionalData,
+      fotoData,
+      dateData,
+      topEncarregados,
+    };
+  }, [dashboardRows]);
+
+  const dashMonitoria = useMemo(() => {
+    const total = monitoriaDashboardRows.length;
+    let conformeCount = 0;
+    let naoConformeCount = 0;
+
+    const setorMap = {};
+    const agenteMap = {};
+    const tratativaMap = {};
+    const fiscalMap = {};
+
+    monitoriaDashboardRows.forEach((r) => {
+      const isNaoConforme = r.houveNaoConformidade === "Sim";
+      if (isNaoConforme) naoConformeCount++;
+      else conformeCount++;
+
+      // Setor
+      const st = r.setor || "Não informado";
+      if (!setorMap[st]) setorMap[st] = { name: st, Conforme: 0, "Não conforme": 0 };
+      if (isNaoConforme) setorMap[st]["Não conforme"]++;
+      else setorMap[st].Conforme++;
+
+      // Agente Agressor
+      if (r.agenteAgressor) {
+        agenteMap[r.agenteAgressor] = (agenteMap[r.agenteAgressor] || 0) + 1;
+      }
+
+      // Tratativas
+      if (r.tratativas) {
+        tratativaMap[r.tratativas] = (tratativaMap[r.tratativas] || 0) + 1;
+      }
+
+      // Fiscal
+      const fisc = r.fiscal?.trim();
+      if (fisc) {
+        fiscalMap[fisc] = (fiscalMap[fisc] || 0) + 1;
+      }
+    });
+
+    const taxaConformidade = total > 0 ? Math.round((conformeCount / total) * 100) : 100;
+    const setorData = Object.values(setorMap);
+    const agenteData = Object.entries(agenteMap)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+    const tratativaData = Object.entries(tratativaMap)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+    const fiscalData = Object.entries(fiscalMap)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+
+    return {
+      total,
+      conformeCount,
+      naoConformeCount,
+      taxaConformidade,
+      setorData,
+      agenteData,
+      tratativaData,
+      fiscalData,
+    };
+  }, [monitoriaDashboardRows]);
+
   const exportXlsx = () => {
     if (view === 'monitoria') {
       const data = filtered.map((r) => ({
@@ -700,19 +894,19 @@ export default function App() {
       const rowData = {
         "Data": formatDateForExport(r.data),
         "Contrato": getContrato(r),
-        "Encarregado": r.encarregado,
-        "OS": r.os,
-        "Tipo de Serviço": r.tipoServico,
-        "Regional": r.regional,
-        "Status de Conformidade": r.conformidade,
-        "Descrição da Não Conformidade": r.descNaoConformidade,
-        "Observação": r.observacao,
-        "Nome do Eletricista Líder": r.nomeEletricistaLider,
-        "Nome do Eletricista": r.nomeEletricista,
-        "Quem Inspecionou": r.quemInspecionou,
-        "Tipo de Inspeção": r.tipoInspecao,
-        "Processo": r.processo,
-        "Registro de Foto": r.registroFoto,
+        "Encarregado": r.encarregado || "",
+        "OS": r.os || "",
+        "Tipo de Serviço": r.tipoServico || "",
+        "Regional": r.regional || "",
+        "Status de Conformidade": r.conformidade || "",
+        "Descrição da Não Conformidade": r.descNaoConformidade || "",
+        "Observação": r.observacao || "",
+        "Nome do Eletricista Líder": r.nomeEletricistaLider || "",
+        "Nome do Eletricista": r.nomeEletricista || "",
+        "Quem Inspecionou": r.quemInspecionou || "",
+        "Tipo de Inspeção": r.tipoInspecao || "",
+        "Processo": r.processo || "",
+        "Registro de Foto": r.registroFoto || "",
       };
       Object.entries(RULES_DE_OURO).forEach(([key, label]) => {
         rowData[label] = r.regrasOuro?.[key] ? "Sim" : "Não";
@@ -1164,7 +1358,7 @@ export default function App() {
                 color: view === "monitoria" ? "#14181C" : "#8A93A0",
               }}
             >
-              <Video size={14} /> MONITORIA
+              <Film size={14} /> MONITORIA
             </button>
             <button
               onClick={() => setView("dashboard")}
@@ -1557,7 +1751,7 @@ export default function App() {
                           {cto}
                         </span>
                       </td>
-                      <td>{r.encarregado}</td>
+                      <td>{r.encarregado || "—"}</td>
                       <td style={{ color: "#E8930C", fontWeight: 600 }}>{r.os}</td>
                       <td>{r.tipoServico || "—"}</td>
                       <td>{r.regional || "—"}</td>
