@@ -4,6 +4,7 @@ const recordSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   data: String,
   encarregado: String,
+  filial: String,
   os: String,
   tipoServico: String,
   regional: String,
@@ -20,9 +21,22 @@ const recordSchema = new mongoose.Schema({
   registroFoto: String,
   observacao: String,
   naoConformidade: String,
+  naoEnvio: String,
+  tipoRegistro: String, // 'registro' | 'naoEnvio' | 'monitoria'
   regrasOuro: { type: Object, default: {} },
-  regrasArquivos: { type: Object, default: {} }
-}, { timestamps: true });
+  regrasArquivos: { type: Object, default: {} },
+  // Campos de Monitoria:
+  dataFilmagem: String,
+  placaVeiculo: String,
+  fiscal: String,
+  setor: String,
+  supervisorResponsavel: String,
+  eletricistas: { type: [String], default: [] },
+  motoristas: { type: [String], default: [] },
+  houveNaoConformidade: String,
+  agenteAgressor: String,
+  tratativas: String,
+}, { timestamps: true, strict: false });
 
 export const Record = mongoose.model('Record', recordSchema);
 
