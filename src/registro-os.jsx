@@ -5,6 +5,8 @@ import autoTable from "jspdf-autotable";
 import {
   Zap, Plus, Trash2, Download, Camera, CheckCircle2, XCircle,
   LayoutGrid, ClipboardList, AlertTriangle, UserPlus, Film,
+  Calendar, Building2, Users, ShieldCheck, FileText, Check,
+  Layers, ChevronRight, Edit3, Sparkles
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -248,6 +250,14 @@ const formatDateForExport = (value) => {
   return value;
 };
 
+const getTodayDate = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const API_BASE = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
   ? 'http://localhost:3000'
   : '';
@@ -255,6 +265,7 @@ const API_BASE = typeof window !== 'undefined' && window.location.hostname === '
 export default function App() { 
   const [view, setView] = useState("registro"); // "registro" | "monitoria" | "dashboard" | "regras" | "naoEnvio"
   const [dashboardTab, setDashboardTab] = useState("os"); // "os" | "monitoria"
+  const [mobileTableView, setMobileTableView] = useState("cards"); // "cards" | "table"
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [formMonitoria, setFormMonitoria] = useState(EMPTY_MONITORIA);
@@ -338,6 +349,14 @@ export default function App() {
       tipoInspecao: value,
       processo: f.tipoInspecao === value ? f.processo : "",
     }));
+  };
+
+  const setFormToday = () => {
+    update("data", getTodayDate());
+  };
+
+  const setFormMonitoriaToday = () => {
+    updateMonitoria("dataFilmagem", getTodayDate());
   };
 
   const processoOptions = PROCESSO_OPTIONS[form.tipoInspecao] || [];
@@ -470,6 +489,7 @@ export default function App() {
       });
       setEditingId(row.id);
       setView("monitoria");
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
@@ -480,6 +500,7 @@ export default function App() {
       });
       setEditingId(row.id);
       setView("naoEnvio");
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
@@ -494,6 +515,7 @@ export default function App() {
     });
     setEditingId(row.id);
     setView("registro");
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id) => {
@@ -1013,9 +1035,11 @@ export default function App() {
           font-size: 11px;
           letter-spacing: 0.08em;
           text-transform: uppercase;
-          color: #8A93A0;
+          color: #9AA4B2;
           margin-bottom: 6px;
-          display: block;
+          display: flex;
+          align-items: center;
+          gap: 6px;
           font-weight: 600;
         }
 
@@ -1024,23 +1048,25 @@ export default function App() {
           background: #1C2126;
           border: 1px solid #2E3540;
           color: #E8EBEE;
-          padding: 10px 12px;
-          border-radius: 6px;
+          padding: 11px 12px;
+          border-radius: 8px;
           font-size: 13px;
           outline: none;
           transition: all 0.15s ease;
           box-sizing: border-box;
+          min-height: 44px;
         }
 
         .field-input:focus {
           border-color: #E8930C;
-          box-shadow: 0 0 0 1px #E8930C40;
+          background: #20262D;
+          box-shadow: 0 0 0 2px rgba(232, 147, 12, 0.2);
         }
 
         .radio-pill {
           cursor: pointer;
-          padding: 9px 12px;
-          border-radius: 6px;
+          padding: 10px 12px;
+          border-radius: 8px;
           border: 1px solid #2E3540;
           font-size: 12px;
           font-weight: 600;
@@ -1050,23 +1076,28 @@ export default function App() {
           display: flex;
           align-items: center;
           justify-content: center;
-          min-height: 38px;
+          min-height: 44px;
           box-sizing: border-box;
+          touch-action: manipulation;
         }
 
         .radio-pill:hover {
           border-color: #4A5462;
         }
 
+        .radio-pill:active {
+          transform: scale(0.98);
+        }
+
         .btn-primary {
           background: #E8930C;
           color: #14181C;
           border: none;
-          padding: 11px 20px;
-          border-radius: 6px;
-          font-weight: 700;
-          font-size: 13px;
-          letter-spacing: 0.03em;
+          padding: 12px 22px;
+          border-radius: 8px;
+          font-weight: 800;
+          font-size: 14px;
+          letter-spacing: 0.04em;
           text-transform: uppercase;
           cursor: pointer;
           display: inline-flex;
@@ -1074,6 +1105,8 @@ export default function App() {
           justify-content: center;
           gap: 8px;
           transition: all 0.15s ease;
+          min-height: 46px;
+          touch-action: manipulation;
         }
 
         .btn-primary:hover {
@@ -1082,7 +1115,7 @@ export default function App() {
         }
 
         .btn-primary:active {
-          transform: translateY(0);
+          transform: translateY(0) scale(0.99);
         }
 
         .btn-primary:disabled {
@@ -1096,7 +1129,7 @@ export default function App() {
           color: #8A93A0;
           border: 1px solid #2E3540;
           padding: 10px 16px;
-          border-radius: 6px;
+          border-radius: 8px;
           font-weight: 600;
           font-size: 13px;
           cursor: pointer;
@@ -1105,6 +1138,8 @@ export default function App() {
           align-items: center;
           justify-content: center;
           gap: 6px;
+          min-height: 42px;
+          touch-action: manipulation;
         }
 
         .btn-ghost:hover {
@@ -1118,6 +1153,62 @@ export default function App() {
           cursor: not-allowed;
         }
 
+        .btn-quick-today {
+          background: #252D37;
+          border: 1px solid #3A4452;
+          color: #38BDF8;
+          font-size: 11px;
+          font-weight: 700;
+          padding: 0 10px;
+          border-radius: 6px;
+          cursor: pointer;
+          height: 28px;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          transition: all 0.15s ease;
+        }
+        .btn-quick-today:hover {
+          background: #38BDF8;
+          color: #14181C;
+        }
+
+        /* Form Sub-Sections */
+        .form-section-card {
+          background: #191E24;
+          border: 1px solid #28303B;
+          border-radius: 10px;
+          padding: 18px;
+          margin-bottom: 18px;
+          transition: border-color 0.15s ease;
+        }
+
+        .form-section-card:hover {
+          border-color: #384252;
+        }
+
+        .form-section-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          margin-bottom: 14px;
+          padding-bottom: 10px;
+          border-bottom: 1px solid #28303B;
+        }
+
+        .form-section-title {
+          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 15px;
+          font-weight: 700;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          color: #E8930C;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
         /* Layout containers */
         .main-wrapper {
           padding: 24px 32px;
@@ -1128,10 +1219,10 @@ export default function App() {
         .card-box {
           background: #171B20;
           border: 1px solid #2E3540;
-          border-radius: 8px;
+          border-radius: 12px;
           padding: 24px;
           margin-bottom: 24px;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
         }
 
         .app-header {
@@ -1149,8 +1240,8 @@ export default function App() {
           display: flex;
           gap: 6px;
           background: #1C2126;
-          padding: 4px;
-          border-radius: 6px;
+          padding: 5px;
+          border-radius: 8px;
           border: 1px solid #2E3540;
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
@@ -1162,16 +1253,19 @@ export default function App() {
         .nav-tab-btn {
           display: flex;
           align-items: center;
+          justify-content: center;
           gap: 6px;
           border: none;
           cursor: pointer;
-          padding: 8px 14px;
-          border-radius: 4px;
+          padding: 9px 15px;
+          border-radius: 6px;
           font-size: 12px;
           font-weight: 700;
           letter-spacing: 0.02em;
           white-space: nowrap;
           transition: all 0.15s ease;
+          min-height: 38px;
+          touch-action: manipulation;
         }
 
         .header-stats {
@@ -1223,9 +1317,9 @@ export default function App() {
         .table-container {
           background: #171B20;
           border: 1px solid #2E3540;
-          border-radius: 8px;
+          border-radius: 12px;
           overflow: hidden;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
         }
 
         .table-header-bar {
@@ -1267,7 +1361,19 @@ export default function App() {
           background: #1A1F24;
         }
 
-        /* Responsive */
+        /* Mobile Card View for Records */
+        .record-card-mobile {
+          background: #191E24;
+          border: 1px solid #28303B;
+          border-radius: 10px;
+          padding: 14px 16px;
+          margin-bottom: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        /* Responsive Breakpoints */
         @media (max-width: 1024px) {
           .grid-4 { grid-template-columns: repeat(2, 1fr); }
           .grid-3 { grid-template-columns: repeat(2, 1fr); }
@@ -1277,11 +1383,16 @@ export default function App() {
         }
 
         @media (max-width: 768px) {
+          /* Prevent auto-zoom in iOS/Android inputs */
+          input, select, textarea {
+            font-size: 16px !important;
+          }
+
           .app-header {
-            padding: 14px 16px;
+            padding: 12px 16px;
             flex-direction: column;
             align-items: stretch;
-            gap: 14px;
+            gap: 12px;
           }
           .header-nav {
             width: 100%;
@@ -1289,15 +1400,27 @@ export default function App() {
             padding: 4px;
           }
           .header-stats {
-            justify-content: space-between;
+            justify-content: space-around;
             width: 100%;
+            background: #191E23;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #28303B;
+          }
+          .header-stats > div {
+            text-align: center !important;
           }
           .main-wrapper {
-            padding: 14px 12px;
+            padding: 12px 10px;
           }
           .card-box {
-            padding: 16px;
+            padding: 14px 12px;
             margin-bottom: 16px;
+            border-radius: 10px;
+          }
+          .form-section-card {
+            padding: 14px 12px;
+            margin-bottom: 14px;
           }
           .grid-4,
           .grid-3,
@@ -1307,38 +1430,45 @@ export default function App() {
           }
           .grid-kpi {
             grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
+            gap: 10px;
           }
           .table-header-bar {
             flex-direction: column;
             align-items: stretch;
+            padding: 12px;
           }
           .table-header-bar input,
           .table-header-bar select {
             max-width: 100% !important;
+            width: 100%;
+          }
+          .btn-primary {
+            width: 100%;
+            padding: 14px;
+            font-size: 15px;
           }
         }
 
         @media (max-width: 480px) {
           .grid-kpi { grid-template-columns: 1fr; }
-          .header-stats { gap: 12px; }
-          .header-stats .disp { font-size: 20px !important; }
+          .header-stats { gap: 10px; }
+          .header-stats .disp { font-size: 18px !important; }
         }
       `}</style>
 
       {/* Header */}
       <div className="app-header">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 36, height: 36, background: "#E8930C", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(232, 147, 12, 0.3)" }}>
-            <Zap size={20} color="#14181C" strokeWidth={2.5} />
+          <div style={{ width: 38, height: 38, background: "#E8930C", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 10px rgba(232, 147, 12, 0.35)" }}>
+            <Zap size={22} color="#14181C" strokeWidth={2.5} />
           </div>
           <div>
             <div className="disp" style={{ fontSize: 22, fontWeight: 800, lineHeight: 1 }}>REGISTRO DE OS & MONITORIA</div>
-            <div style={{ fontSize: 11, color: "#6B7580", letterSpacing: "0.04em", marginTop: 2 }}>Serviços elétricos · controle de conformidade</div>
+            <div style={{ fontSize: 11, color: "#8A93A0", letterSpacing: "0.04em", marginTop: 2 }}>Serviços elétricos · controle de conformidade</div>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <div className="header-nav">
             <button
               onClick={() => { setView("registro"); setEditingId(null); }}
@@ -1397,17 +1527,17 @@ export default function App() {
           </div>
 
           <div className="header-stats">
-            <div style={{ textAlign: "right" }}>
-              <div className="disp" style={{ fontSize: 24, fontWeight: 800, color: "#E8EBEE", lineHeight: 1 }}>{rows.length}</div>
-              <div style={{ fontSize: 10, color: "#6B7580", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 2 }}>Registros</div>
+            <div>
+              <div className="disp" style={{ fontSize: 22, fontWeight: 800, color: "#E8EBEE", lineHeight: 1 }}>{rows.length}</div>
+              <div style={{ fontSize: 10, color: "#8A93A0", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 2 }}>Registros</div>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <div className="disp" style={{ fontSize: 24, fontWeight: 800, color: "#2F9E52", lineHeight: 1 }}>{totals.conforme}</div>
-              <div style={{ fontSize: 10, color: "#6B7580", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 2 }}>Conformes</div>
+            <div>
+              <div className="disp" style={{ fontSize: 22, fontWeight: 800, color: "#2F9E52", lineHeight: 1 }}>{totals.conforme}</div>
+              <div style={{ fontSize: 10, color: "#8A93A0", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 2 }}>Conformes</div>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <div className="disp" style={{ fontSize: 24, fontWeight: 800, color: "#D64545", lineHeight: 1 }}>{totals.naoConforme}</div>
-              <div style={{ fontSize: 10, color: "#6B7580", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 2 }}>Não conformes</div>
+            <div>
+              <div className="disp" style={{ fontSize: 22, fontWeight: 800, color: "#D64545", lineHeight: 1 }}>{totals.naoConforme}</div>
+              <div style={{ fontSize: 10, color: "#8A93A0", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 2 }}>Não conformes</div>
             </div>
           </div>
         </div>
@@ -1418,146 +1548,67 @@ export default function App() {
       <>
         {/* Form */}
         <div className="card-box">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-            <div className="disp" style={{ fontSize: 17, fontWeight: 700, letterSpacing: "0.01em" }}>
-              {editingId ? "EDITAR REGISTRO DE OS" : "NOVO REGISTRO DE OS"}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 8, height: 24, background: "#E8930C", borderRadius: 4 }}></div>
+              <div className="disp" style={{ fontSize: 20, fontWeight: 800, letterSpacing: "0.02em" }}>
+                {editingId ? "EDITAR REGISTRO DE OS" : "NOVO REGISTRO DE OS"}
+              </div>
             </div>
             {editingId && (
-              <button className="btn-ghost" onClick={cancelEdit}>Cancelar edição</button>
+              <button className="btn-ghost" onClick={cancelEdit} style={{ height: 36, padding: "0 14px", fontSize: 12 }}>
+                Cancelar edição
+              </button>
             )}
           </div>
 
-          <div className="grid-4">
-            <div>
-              <label className="field-label">Data *</label>
-              <input type="date" className="field-input" value={form.data} onChange={(e) => update("data", e.target.value)} />
-            </div>
-            <div>
-              <label className="field-label">Nome do Encarregado</label>
-              <input type="text" className="field-input" placeholder="Ex: João Silva" value={form.encarregado} onChange={(e) => update("encarregado", e.target.value)} />
-            </div>
-            <div>
-              <label className="field-label">OS</label>
-              <input type="text" className="field-input" placeholder="Nº da OS" value={form.os} onChange={(e) => update("os", e.target.value)} />
-            </div>
-            <div>
-              <label className="field-label">Tipo de Serviço</label>
-              <input type="text" className="field-input" placeholder="Ex: Manutenção preventiva" value={form.tipoServico} onChange={(e) => update("tipoServico", e.target.value)} />
-            </div>
-          </div>
-
-          <div className="grid-4">
-            <div>
-              <label className="field-label">Regional</label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                {(REGIONAIS_POR_CONTRATO[form.contrato] || []).map((opt) => {
-                  const active = form.regional === opt;
-                  return (
-                    <div
-                      key={opt}
-                      className="radio-pill"
-                      onClick={() => update("regional", opt)}
-                      style={{
-                        background: active ? "#1F6B3A" : "#1C2126",
-                        borderColor: active ? "#2F9E52" : "#2E3540",
-                        color: active ? "#EAF4EE" : "#8A93A0",
-                        fontSize: 12, padding: "8px 6px",
-                      }}
-                    >
-                      {opt}
-                    </div>
-                  );
-                })}
+          {/* SEÇÃO 1: CONTRATO & DADOS DA OS */}
+          <div className="form-section-card">
+            <div className="form-section-header">
+              <div className="form-section-title">
+                <Building2 size={16} /> 1. Contrato & Dados Principais
               </div>
             </div>
-            <div>
-              <label className="field-label">Processo</label>
-              <select
-                className="field-input"
-                value={form.processo}
-                onChange={(e) => update("processo", e.target.value)}
-                style={{ appearance: "auto" }}
-                disabled={!form.tipoInspecao}
-              >
-                <option value="">{form.tipoInspecao ? "Selecione..." : "Selecione o tipo de inspeção"}</option>
-                {processoOptions.map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="field-label">Nome do Eletricista Líder</label>
-              <input type="text" className="field-input" placeholder="Ex: João Silva" value={form.nomeEletricistaLider} onChange={(e) => update("nomeEletricistaLider", e.target.value)} />
-            </div>
-            <div>
-              <label className="field-label">Nome do Eletricista</label>
-              <input type="text" className="field-input" placeholder="Ex: Pedro Almeida" value={form.nomeEletricista} onChange={(e) => update("nomeEletricista", e.target.value)} />
-            </div>
-          </div>
 
-          <div className="grid-4">
-            <div>
-              <label className="field-label">
-                {form.contrato === "ENEL" ? "Téc. de Segurança do Trabalho *" : "Quem inspecionou"}
-              </label>
-              {form.contrato === "ENEL" ? (
-                <select
-                  className="field-input"
-                  value={form.quemInspecionou}
-                  onChange={(e) => update("quemInspecionou", e.target.value)}
-                  style={{ appearance: "auto" }}
-                >
-                  <option value="">Selecione o Téc. de Segurança...</option>
-                  {INSPECTORES_ENEL.map((name) => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
-              ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
-                  {INSPECTORES_LIGHT.map((opt) => {
-                    const active = form.quemInspecionou === opt;
-                    return (
-                      <div
-                        key={opt}
-                        className="radio-pill"
-                        onClick={() => update("quemInspecionou", opt)}
-                        style={{
-                          background: active ? "#1F6B3A" : "#1C2126",
-                          borderColor: active ? "#2F9E52" : "#2E3540",
-                          color: active ? "#EAF4EE" : "#8A93A0",
-                        }}
-                      >
-                        {opt}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="field-label">Contrato</label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {/* Contrato Toggle */}
+            <div style={{ marginBottom: 16 }}>
+              <label className="field-label">Selecione o Contrato *</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 {['LIGHT', 'ENEL'].map((opt) => {
                   const active = form.contrato === opt;
+                  const isLight = opt === 'LIGHT';
                   return (
                     <div
                       key={opt}
                       className="radio-pill"
                       onClick={() => handleContratoChange(opt)}
                       style={{
-                        background: active ? (opt === 'LIGHT' ? "#1B2F3E" : "#2B1A4A") : "#1C2126",
-                        borderColor: active ? (opt === 'LIGHT' ? "#38BDF8" : "#C084FC") : "#2E3540",
-                        color: active ? (opt === 'LIGHT' ? "#38BDF8" : "#C084FC") : "#8A93A0",
+                        background: active 
+                          ? (isLight ? "rgba(56, 189, 248, 0.18)" : "rgba(192, 132, 252, 0.18)") 
+                          : "#1C2126",
+                        borderColor: active 
+                          ? (isLight ? "#38BDF8" : "#C084FC") 
+                          : "#2E3540",
+                        color: active 
+                          ? (isLight ? "#38BDF8" : "#C084FC") 
+                          : "#8A93A0",
+                        fontSize: 14,
+                        fontWeight: 800,
+                        gap: 8,
+                        boxShadow: active ? `0 0 12px ${isLight ? 'rgba(56, 189, 248, 0.25)' : 'rgba(192, 132, 252, 0.25)'}` : "none",
                       }}
                     >
+                      {active && <Check size={16} />}
                       {opt}
                     </div>
                   );
                 })}
               </div>
             </div>
-            <div>
-              <label className="field-label">Tipo de inspeção</label>
+
+            {/* Tipo de Inspeção Chips */}
+            <div style={{ marginBottom: 16 }}>
+              <label className="field-label">Tipo de Inspeção *</label>
               <div style={{ display: "grid", gridTemplateColumns: `repeat(${((INSPECAO_POR_CONTRATO[form.contrato] || []).length) || 1}, 1fr)`, gap: 8 }}>
                 {(INSPECAO_POR_CONTRATO[form.contrato] || []).map((opt) => {
                   const active = form.tipoInspecao === opt;
@@ -1570,7 +1621,9 @@ export default function App() {
                         background: active ? "#1F6B3A" : "#1C2126",
                         borderColor: active ? "#2F9E52" : "#2E3540",
                         color: active ? "#EAF4EE" : "#8A93A0",
-                        fontSize: 12, padding: "8px 6px",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        padding: "8px 6px",
                       }}
                     >
                       {opt}
@@ -1579,107 +1632,316 @@ export default function App() {
                 })}
               </div>
             </div>
-            <div>
-              <label className="field-label">Observação</label>
-              <input type="text" className="field-input" placeholder="Observações adicionais" value={form.observacao} onChange={(e) => update("observacao", e.target.value)} />
+
+            <div className="grid-3">
+              {/* Data com botão "Hoje" */}
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <label className="field-label" style={{ margin: 0 }}>Data da Inspeção *</label>
+                  <button type="button" onClick={setFormToday} className="btn-quick-today">
+                    <Calendar size={12} /> Hoje
+                  </button>
+                </div>
+                <input
+                  type="date"
+                  className="field-input"
+                  value={form.data}
+                  onChange={(e) => update("data", e.target.value)}
+                />
+              </div>
+
+              {/* Regional Chips */}
+              <div>
+                <label className="field-label">Regional</label>
+                <div style={{ display: "grid", gridTemplateColumns: `repeat(${(REGIONAIS_POR_CONTRATO[form.contrato] || []).length || 2}, 1fr)`, gap: 6 }}>
+                  {(REGIONAIS_POR_CONTRATO[form.contrato] || []).map((opt) => {
+                    const active = form.regional === opt;
+                    return (
+                      <div
+                        key={opt}
+                        className="radio-pill"
+                        onClick={() => update("regional", opt)}
+                        style={{
+                          background: active ? "#1F6B3A" : "#1C2126",
+                          borderColor: active ? "#2F9E52" : "#2E3540",
+                          color: active ? "#EAF4EE" : "#8A93A0",
+                          fontSize: 12,
+                          padding: "6px 4px",
+                          minHeight: 40,
+                        }}
+                      >
+                        {opt}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Número da OS */}
+              <div>
+                <label className="field-label">Número da OS</label>
+                <input
+                  type="text"
+                  className="field-input"
+                  placeholder="Ex: 1234567"
+                  value={form.os}
+                  onChange={(e) => update("os", e.target.value)}
+                  style={{ fontWeight: 600, color: "#E8930C" }}
+                />
+              </div>
+            </div>
+
+            <div className="grid-2" style={{ gridTemplateColumns: "1fr 1fr", margin: 0 }}>
+              {/* Processo */}
+              <div>
+                <label className="field-label">Processo</label>
+                <select
+                  className="field-input"
+                  value={form.processo}
+                  onChange={(e) => update("processo", e.target.value)}
+                  style={{ appearance: "auto" }}
+                  disabled={!form.tipoInspecao}
+                >
+                  <option value="">{form.tipoInspecao ? "Selecione o processo..." : "Selecione o tipo de inspeção antes"}</option>
+                  {processoOptions.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tipo de Serviço */}
+              <div>
+                <label className="field-label">Tipo de Serviço</label>
+                <input
+                  type="text"
+                  className="field-input"
+                  placeholder="Ex: Manutenção preventiva, troca de poste..."
+                  value={form.tipoServico}
+                  onChange={(e) => update("tipoServico", e.target.value)}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="grid-2">
-            <div>
-              <label className="field-label">Conformidade</label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                <div
-                  className="radio-pill"
-                  onClick={() => setForm((f) => ({ ...f, conformidade: "Conforme", descNaoConformidade: "" }))}
-                  style={{
-                    background: form.conformidade === "Conforme" ? "#1F6B3A" : "#1C2126",
-                    borderColor: form.conformidade === "Conforme" ? "#2F9E52" : "#2E3540",
-                    color: form.conformidade === "Conforme" ? "#EAF4EE" : "#8A93A0",
-                    gap: 6,
-                  }}
-                >
-                  <CheckCircle2 size={14} /> Conforme
-                </div>
-                <div
-                  className="radio-pill"
-                  onClick={() => update("conformidade", "Não conforme")}
-                  style={{
-                    background: form.conformidade === "Não conforme" ? "#7A2626" : "#1C2126",
-                    borderColor: form.conformidade === "Não conforme" ? "#D64545" : "#2E3540",
-                    color: form.conformidade === "Não conforme" ? "#FBEAEA" : "#8A93A0",
-                    gap: 6,
-                  }}
-                >
-                  <XCircle size={14} /> Não conforme
-                </div>
+          {/* SEÇÃO 2: EQUIPE & RESPONSÁVEIS */}
+          <div className="form-section-card">
+            <div className="form-section-header">
+              <div className="form-section-title">
+                <Users size={16} /> 2. Equipe & Responsáveis
               </div>
-              {form.conformidade === "Não conforme" && (
-                <div style={{ marginTop: 10 }}>
-                  <label className="field-label" style={{ color: "#E8930C" }}>
-                    <AlertTriangle size={11} style={{ display: "inline", marginRight: 4, verticalAlign: -1 }} />
-                    Descreva a não conformidade *
-                  </label>
-                  <textarea
+            </div>
+
+            <div className="grid-4">
+              {/* Quem inspecionou */}
+              <div>
+                <label className="field-label" style={{ color: form.contrato === "ENEL" ? "#C084FC" : "#38BDF8" }}>
+                  {form.contrato === "ENEL" ? "Téc. de Segurança do Trabalho *" : "Quem inspecionou"}
+                </label>
+                {form.contrato === "ENEL" ? (
+                  <select
                     className="field-input"
-                    style={{ resize: "vertical", minHeight: 60, fontFamily: "inherit" }}
-                    placeholder="Ex: EPI incompleto, procedimento de bloqueio não seguido..."
-                    value={form.descNaoConformidade}
-                    onChange={(e) => update("descNaoConformidade", e.target.value)}
-                  />
-                </div>
-              )}
-            </div>
+                    value={form.quemInspecionou}
+                    onChange={(e) => update("quemInspecionou", e.target.value)}
+                    style={{ appearance: "auto", borderColor: "#7E22CE" }}
+                  >
+                    <option value="">Selecione o Téc. de Segurança...</option>
+                    {INSPECTORES_ENEL.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
+                    {INSPECTORES_LIGHT.map((opt) => {
+                      const active = form.quemInspecionou === opt;
+                      return (
+                        <div
+                          key={opt}
+                          className="radio-pill"
+                          onClick={() => update("quemInspecionou", opt)}
+                          style={{
+                            background: active ? "#1F6B3A" : "#1C2126",
+                            borderColor: active ? "#2F9E52" : "#2E3540",
+                            color: active ? "#EAF4EE" : "#8A93A0",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {opt}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
-            <div>
-              <label className="field-label"><Camera size={11} style={{ display: "inline", marginRight: 4, verticalAlign: -1 }} />Registro de Foto</label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                {Object.keys(FOTO_STYLES).map((opt) => {
-                  const active = form.registroFoto === opt;
-                  const s = FOTO_STYLES[opt];
-                  return (
-                    <div
-                      key={opt}
-                      className="radio-pill"
-                      onClick={() => update("registroFoto", opt)}
-                      style={{
-                        background: active ? s.bg : "#1C2126",
-                        borderColor: active ? s.dot : "#2E3540",
-                        color: active ? s.fg : "#8A93A0",
-                        fontSize: 12,
-                      }}
-                    >
-                      {opt}
-                    </div>
-                  );
-                })}
+              {/* Nome do Encarregado */}
+              <div>
+                <label className="field-label">Nome do Encarregado</label>
+                <input
+                  type="text"
+                  className="field-input"
+                  placeholder="Ex: João Silva"
+                  value={form.encarregado}
+                  onChange={(e) => update("encarregado", e.target.value)}
+                />
+              </div>
+
+              {/* Eletricista Líder */}
+              <div>
+                <label className="field-label">Eletricista Líder</label>
+                <input
+                  type="text"
+                  className="field-input"
+                  placeholder="Ex: Carlos Pereira"
+                  value={form.nomeEletricistaLider}
+                  onChange={(e) => update("nomeEletricistaLider", e.target.value)}
+                />
+              </div>
+
+              {/* Eletricista */}
+              <div>
+                <label className="field-label">Eletricista</label>
+                <input
+                  type="text"
+                  className="field-input"
+                  placeholder="Ex: Pedro Almeida"
+                  value={form.nomeEletricista}
+                  onChange={(e) => update("nomeEletricista", e.target.value)}
+                />
               </div>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          {/* SEÇÃO 3: CONFORMIDADE & FOTOS */}
+          <div className="form-section-card">
+            <div className="form-section-header">
+              <div className="form-section-title">
+                <ShieldCheck size={16} /> 3. Avaliação & Registro Fotográfico
+              </div>
+            </div>
+
+            <div className="grid-2" style={{ alignItems: "start" }}>
+              {/* Conformidade */}
+              <div>
+                <label className="field-label">Status de Conformidade *</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div
+                    className="radio-pill"
+                    onClick={() => setForm((f) => ({ ...f, conformidade: "Conforme", descNaoConformidade: "" }))}
+                    style={{
+                      background: form.conformidade === "Conforme" ? "#1F6B3A" : "#1C2126",
+                      borderColor: form.conformidade === "Conforme" ? "#2F9E52" : "#2E3540",
+                      color: form.conformidade === "Conforme" ? "#EAF4EE" : "#8A93A0",
+                      fontWeight: 700,
+                      gap: 8,
+                      minHeight: 48,
+                    }}
+                  >
+                    <CheckCircle2 size={18} /> Conforme
+                  </div>
+                  <div
+                    className="radio-pill"
+                    onClick={() => update("conformidade", "Não conforme")}
+                    style={{
+                      background: form.conformidade === "Não conforme" ? "#7A2626" : "#1C2126",
+                      borderColor: form.conformidade === "Não conforme" ? "#D64545" : "#2E3540",
+                      color: form.conformidade === "Não conforme" ? "#FBEAEA" : "#8A93A0",
+                      fontWeight: 700,
+                      gap: 8,
+                      minHeight: 48,
+                    }}
+                  >
+                    <XCircle size={18} /> Não conforme
+                  </div>
+                </div>
+
+                {form.conformidade === "Não conforme" && (
+                  <div style={{ marginTop: 12 }}>
+                    <label className="field-label" style={{ color: "#E8930C" }}>
+                      <AlertTriangle size={13} />
+                      Descreva o desvio / não conformidade *
+                    </label>
+                    <textarea
+                      className="field-input"
+                      style={{ resize: "vertical", minHeight: 75, fontFamily: "inherit", borderColor: "#E8930C" }}
+                      placeholder="Descreva detalhadamente o desvio identificado na atividade..."
+                      value={form.descNaoConformidade}
+                      onChange={(e) => update("descNaoConformidade", e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Registro de Foto */}
+              <div>
+                <label className="field-label">
+                  <Camera size={13} /> Registro Fotográfico
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
+                  {Object.keys(FOTO_STYLES).map((opt) => {
+                    const active = form.registroFoto === opt;
+                    const s = FOTO_STYLES[opt];
+                    return (
+                      <div
+                        key={opt}
+                        className="radio-pill"
+                        onClick={() => update("registroFoto", opt)}
+                        style={{
+                          background: active ? s.bg : "#1C2126",
+                          borderColor: active ? s.dot : "#2E3540",
+                          color: active ? s.fg : "#8A93A0",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          justifyContent: "flex-start",
+                          padding: "10px 14px",
+                          gap: 10,
+                        }}
+                      >
+                        <div style={{ width: 10, height: 10, borderRadius: "50%", background: active ? s.dot : "#4A5462" }} />
+                        {opt}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Observações */}
+            <div style={{ marginTop: 14 }}>
+              <label className="field-label">Observações Adicionais (Opcional)</label>
+              <input
+                type="text"
+                className="field-input"
+                placeholder="Qualquer observação pertinente sobre a inspeção..."
+                value={form.observacao}
+                onChange={(e) => update("observacao", e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Submit Action */}
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", marginTop: 20 }}>
             <button className="btn-primary" disabled={!requiredOk} onClick={handleSubmit}>
-              <Plus size={16} /> {editingId ? "Salvar alterações" : "Adicionar registro"}
+              <Plus size={18} /> {editingId ? "Salvar Alterações" : "Adicionar Registro de OS"}
             </button>
             {!requiredOk && (
-              <span style={{ fontSize: 12, color: "#6B7580" }}>
+              <span style={{ fontSize: 12, color: "#8A93A0" }}>
                 {form.conformidade === "Não conforme" && !form.descNaoConformidade.trim()
-                  ? "Descreva a não conformidade para adicionar."
-                  : "Preencha a data para adicionar."}
+                  ? "⚠️ Preencha a descrição da não conformidade para salvar."
+                  : "⚠️ Selecione a data da inspeção para salvar."}
               </span>
             )}
           </div>
         </div>
 
-        {/* Table */}
+        {/* Table / Mobile Cards */}
         <div className="table-container">
           <div className="table-header-bar">
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", flex: 1 }}>
               <input
                 type="text"
-                placeholder="Filtrar por OS, encarregado, regional, processo..."
+                placeholder="Buscar por OS, encarregado, regional, processo..."
                 className="field-input"
-                style={{ maxWidth: 340 }}
+                style={{ maxWidth: 360 }}
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               />
@@ -1695,7 +1957,32 @@ export default function App() {
                 ))}
               </select>
             </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ display: "flex", background: "#1C2126", padding: 3, borderRadius: 6, border: "1px solid #2E3540" }}>
+                <button
+                  type="button"
+                  onClick={() => setMobileTableView("cards")}
+                  style={{
+                    border: "none", cursor: "pointer", padding: "6px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700,
+                    background: mobileTableView === "cards" ? "#E8930C" : "transparent",
+                    color: mobileTableView === "cards" ? "#14181C" : "#8A93A0",
+                  }}
+                >
+                  Cards
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTableView("table")}
+                  style={{
+                    border: "none", cursor: "pointer", padding: "6px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700,
+                    background: mobileTableView === "table" ? "#E8930C" : "transparent",
+                    color: mobileTableView === "table" ? "#14181C" : "#8A93A0",
+                  }}
+                >
+                  Tabela
+                </button>
+              </div>
               <button className="btn-ghost" onClick={exportXlsx}>
                 <Download size={14} /> XLS
               </button>
@@ -1704,119 +1991,201 @@ export default function App() {
               </button>
             </div>
           </div>
-          <div style={{ overflowX: "auto" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Contrato</th>
-                  <th>Encarregado</th>
-                  <th>OS</th>
-                  <th>Tipo de Serviço</th>
-                  <th>Regional</th>
-                  <th>Status</th>
-                  <th>Processo</th>
-                  <th>Observação</th>
-                  <th>Líder</th>
-                  <th>Eletricista</th>
-                  <th>Quem inspecionou</th>
-                  <th>Tipo Inspeção</th>
-                  <th>Arquivos Regras</th>
-                  <th>Regras de Ouro</th>
-                  <th>Foto</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageRows.length === 0 && (
+
+          {/* Seletor Mobile Cards vs Tabela */}
+          {mobileTableView === "cards" ? (
+            <div style={{ padding: "16px 16px 4px 16px" }}>
+              {pageRows.length === 0 ? (
+                <div style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
+                  {rows.length === 0 ? "Nenhum registro ainda. Preencha o formulário acima para começar." : "Nenhum resultado para esse filtro."}
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
+                  {pageRows.map((r) => {
+                    const fs = FOTO_STYLES[r.registroFoto] || FOTO_STYLES["Enviado"];
+                    const cto = getContrato(r);
+                    const isConforme = r.conformidade === "Conforme";
+
+                    return (
+                      <div key={r.id} className="record-card-mobile">
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{
+                            fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 4,
+                            background: cto === "ENEL" ? "#2B1A4A" : "#1B2F3E",
+                            color: cto === "ENEL" ? "#C084FC" : "#38BDF8",
+                            border: `1px solid ${cto === "ENEL" ? "#7E22CE" : "#0284C7"}`
+                          }}>
+                            {cto}
+                          </span>
+                          <span style={{ fontSize: 12, color: "#8A93A0" }}>{formatDateForExport(r.data)}</span>
+                        </div>
+
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                          <span style={{ fontSize: 16, fontWeight: 800, color: "#E8930C" }}>
+                            OS: {r.os || "S/N"}
+                          </span>
+                          <span style={{
+                            fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 12,
+                            background: isConforme ? "#1F6B3A" : "#7A2626",
+                            color: isConforme ? "#EAF4EE" : "#FBEAEA",
+                          }}>
+                            {r.conformidade}
+                          </span>
+                        </div>
+
+                        <div style={{ fontSize: 12, display: "grid", gap: 4, color: "#9AA4B2" }}>
+                          <div><strong>Encarregado:</strong> {r.encarregado || "—"}</div>
+                          <div><strong>Regional / Tipo:</strong> {r.regional || "—"} · {r.tipoInspecao || "—"}</div>
+                          <div><strong>Inspetor:</strong> <span style={{ color: "#38BDF8" }}>{r.quemInspecionou || "—"}</span></div>
+                          {r.processo && <div><strong>Processo:</strong> {r.processo}</div>}
+                          {r.descNaoConformidade && (
+                            <div style={{ color: "#FCA5A5", background: "#3A1B1B", padding: "6px 8px", borderRadius: 4, marginTop: 4 }}>
+                              ⚠️ <strong>Desvio:</strong> {r.descNaoConformidade}
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #28303B", paddingTop: 10, marginTop: 4 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 12, background: fs.bg, color: fs.fg }}>
+                            {r.registroFoto}
+                          </span>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              onClick={() => handleEdit(r)}
+                              style={{ background: "#252D37", border: "1px solid #3A4452", color: "#E8EBEE", borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}
+                            >
+                              <Edit3 size={13} /> Editar
+                            </button>
+                            <button
+                              onClick={() => handleDelete(r.id)}
+                              style={{ background: "#2D1A1A", border: "1px solid #5A2A2A", color: "#D64545", borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table>
+                <thead>
                   <tr>
-                    <td colSpan={17} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
-                      {rows.length === 0 ? "Nenhum registro ainda. Preencha o formulário acima para começar." : "Nenhum resultado para esse filtro."}
-                    </td>
+                    <th>Data</th>
+                    <th>Contrato</th>
+                    <th>Encarregado</th>
+                    <th>OS</th>
+                    <th>Tipo de Serviço</th>
+                    <th>Regional</th>
+                    <th>Status</th>
+                    <th>Processo</th>
+                    <th>Observação</th>
+                    <th>Líder</th>
+                    <th>Eletricista</th>
+                    <th>Quem inspecionou</th>
+                    <th>Tipo Inspeção</th>
+                    <th>Arquivos Regras</th>
+                    <th>Regras de Ouro</th>
+                    <th>Foto</th>
+                    <th></th>
                   </tr>
-                )}
-                {pageRows.map((r) => {
-                  const fs = FOTO_STYLES[r.registroFoto] || FOTO_STYLES["Enviado"];
-                  const cto = getContrato(r);
-                  return (
-                    <tr key={r.id}>
-                      <td>{r.data}</td>
-                      <td>
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
-                          background: cto === "ENEL" ? "#2B1A4A" : "#1B2F3E",
-                          color: cto === "ENEL" ? "#C084FC" : "#38BDF8",
-                          border: `1px solid ${cto === "ENEL" ? "#7E22CE" : "#0284C7"}`
-                        }}>
-                          {cto}
-                        </span>
-                      </td>
-                      <td>{r.encarregado || "—"}</td>
-                      <td style={{ color: "#E8930C", fontWeight: 600 }}>{r.os}</td>
-                      <td>{r.tipoServico || "—"}</td>
-                      <td>{r.regional || "—"}</td>
-                      <td>
-                        <span
-                          title={r.conformidade === "Não conforme" ? r.descNaoConformidade : undefined}
-                          style={{
-                            fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20,
-                            background: r.conformidade === "Conforme" ? "#1F6B3A" : "#7A2626",
-                            color: r.conformidade === "Conforme" ? "#EAF4EE" : "#FBEAEA",
-                            cursor: r.conformidade === "Não conforme" ? "help" : "default",
-                          }}
-                        >
-                          {r.conformidade}{r.conformidade === "Não conforme" ? " ⓘ" : ""}
-                        </span>
-                      </td>
-                      <td>{r.processo || "—"}</td>
-                      <td>{r.observacao || "—"}</td>
-                      <td>{r.nomeEletricistaLider || "—"}</td>
-                      <td>{r.nomeEletricista || "—"}</td>
-                      <td style={{ color: "#38BDF8", fontWeight: 600 }}>{r.quemInspecionou || "—"}</td>
-                      <td>{r.tipoInspecao || "—"}</td>
-                      <td>
-                        <div style={{ display: "grid", gap: 4 }}>
-                          {Object.entries(r.regrasArquivos || {}).filter(([, file]) => file).map(([key, file]) => (
-                            <span key={`${key}-${file.name}`} style={{ fontSize: 11, color: "#E8EBEE" }}>{`${RULES_DE_OURO[key]}: ${file.name}`}</span>
-                          ))}
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                          {Object.entries(r.regrasOuro || {})
-                            .filter(([, value]) => value)
-                            .map(([key]) => (
-                              <span key={key} style={{ fontSize: 11, color: "#8A93A0" }}>{RULES_DE_OURO[key]}</span>
-                            ))}
-                        </div>
-                      </td>
-                      <td>
-                        <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: fs.bg, color: fs.fg }}>
-                          {r.registroFoto}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                          <button
-                            onClick={() => handleEdit(r)}
-                            style={{ background: "none", border: "1px solid #2E3540", color: "#8A93A0", borderRadius: 4, padding: "5px 9px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => handleDelete(r.id)}
-                            style={{ background: "none", border: "1px solid #2E3540", color: "#D64545", borderRadius: 4, padding: "5px 8px", cursor: "pointer", display: "flex", alignItems: "center" }}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
+                </thead>
+                <tbody>
+                  {pageRows.length === 0 && (
+                    <tr>
+                      <td colSpan={17} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
+                        {rows.length === 0 ? "Nenhum registro ainda. Preencha o formulário acima para começar." : "Nenhum resultado para esse filtro."}
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  )}
+                  {pageRows.map((r) => {
+                    const fs = FOTO_STYLES[r.registroFoto] || FOTO_STYLES["Enviado"];
+                    const cto = getContrato(r);
+                    return (
+                      <tr key={r.id}>
+                        <td>{r.data}</td>
+                        <td>
+                          <span style={{
+                            fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
+                            background: cto === "ENEL" ? "#2B1A4A" : "#1B2F3E",
+                            color: cto === "ENEL" ? "#C084FC" : "#38BDF8",
+                            border: `1px solid ${cto === "ENEL" ? "#7E22CE" : "#0284C7"}`
+                          }}>
+                            {cto}
+                          </span>
+                        </td>
+                        <td>{r.encarregado || "—"}</td>
+                        <td style={{ color: "#E8930C", fontWeight: 600 }}>{r.os}</td>
+                        <td>{r.tipoServico || "—"}</td>
+                        <td>{r.regional || "—"}</td>
+                        <td>
+                          <span
+                            title={r.conformidade === "Não conforme" ? r.descNaoConformidade : undefined}
+                            style={{
+                              fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20,
+                              background: r.conformidade === "Conforme" ? "#1F6B3A" : "#7A2626",
+                              color: r.conformidade === "Conforme" ? "#EAF4EE" : "#FBEAEA",
+                              cursor: r.conformidade === "Não conforme" ? "help" : "default",
+                            }}
+                          >
+                            {r.conformidade}{r.conformidade === "Não conforme" ? " ⓘ" : ""}
+                          </span>
+                        </td>
+                        <td>{r.processo || "—"}</td>
+                        <td>{r.observacao || "—"}</td>
+                        <td>{r.nomeEletricistaLider || "—"}</td>
+                        <td>{r.nomeEletricista || "—"}</td>
+                        <td style={{ color: "#38BDF8", fontWeight: 600 }}>{r.quemInspecionou || "—"}</td>
+                        <td>{r.tipoInspecao || "—"}</td>
+                        <td>
+                          <div style={{ display: "grid", gap: 4 }}>
+                            {Object.entries(r.regrasArquivos || {}).filter(([, file]) => file).map(([key, file]) => (
+                              <span key={`${key}-${file.name}`} style={{ fontSize: 11, color: "#E8EBEE" }}>{`${RULES_DE_OURO[key]}: ${file.name}`}</span>
+                            ))}
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            {Object.entries(r.regrasOuro || {})
+                              .filter(([, value]) => value)
+                              .map(([key]) => (
+                                <span key={key} style={{ fontSize: 11, color: "#8A93A0" }}>{RULES_DE_OURO[key]}</span>
+                              ))}
+                          </div>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: fs.bg, color: fs.fg }}>
+                            {r.registroFoto}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                            <button
+                              onClick={() => handleEdit(r)}
+                              style={{ background: "none", border: "1px solid #2E3540", color: "#8A93A0", borderRadius: 4, padding: "5px 9px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleDelete(r.id)}
+                              style={{ background: "none", border: "1px solid #2E3540", color: "#D64545", borderRadius: 4, padding: "5px 8px", cursor: "pointer", display: "flex", alignItems: "center" }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
           <div style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', borderTop: '1px solid #2E3540' }}>
             <div style={{ color: '#8A93A0', fontSize: 12 }}>
               Mostrando {pageRows.length} de {sortedFiltered.length} registros
@@ -1863,7 +2232,12 @@ export default function App() {
 
             <div className="grid-3">
               <div>
-                <label className="field-label">Data da Filmagem *</label>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <label className="field-label" style={{ margin: 0 }}>Data da Filmagem *</label>
+                  <button type="button" onClick={setFormMonitoriaToday} className="btn-quick-today">
+                    <Calendar size={12} /> Hoje
+                  </button>
+                </div>
                 <input
                   type="date"
                   className="field-input"
@@ -2558,7 +2932,7 @@ export default function App() {
               <div key={key} style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 18 }}>
                 <div style={{ fontSize: 13, color: "#E8EBEE", marginBottom: 10, fontWeight: 700 }}>{label}</div>
                 <div style={{ fontSize: 12, color: "#8A93A0", marginBottom: 14 }}>Registros com essa regra:</div>
-                <div style={{ fontSize: 28, fontWeight: 800, color: "#E8930C" }}>{ruleCounts[key] || 0}</div>
+                <div className="disp" style={{ fontSize: 28, fontWeight: 800, color: "#E8930C" }}>{ruleCounts[key] || 0}</div>
               </div>
             ))}
           </div>
@@ -2641,7 +3015,7 @@ function DashboardView({
           >
             <option value="all">Todos os meses</option>
             {monthOptions.map((month) => (
-              <option key={month} value={month}>{`${month.slice(5)}/${month.slice(0, 4)}`}</option>
+              <option key={month} value={month}>{formatMonthLabel(month)}</option>
             ))}
           </select>
         </div>
