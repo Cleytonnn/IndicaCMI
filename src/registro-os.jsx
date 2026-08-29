@@ -406,11 +406,11 @@ export default function App() {
 
   const handleSubmit = async () => {
     const isNaoEnvio = form.tipoRegistro === "naoEnvio";
-    const requiredNaoEnvio = form.data && form.encarregado && form.os && form.naoEnvio;
-    if (isNaoEnvio && !requiredNaoEnvio) return;
     if (!isNaoEnvio && !requiredOk) return;
 
-    const payload = editingId ? { ...form, id: editingId } : { ...form, id: generateId() };
+    // Se for não envio e a data estiver vazia, preenche automaticamente com a data de hoje
+    const finalForm = isNaoEnvio && !form.data ? { ...form, data: getTodayDate() } : form;
+    const payload = editingId ? { ...finalForm, id: editingId } : { ...finalForm, id: generateId() };
     try {
       const res = await fetch(
         editingId ? `${API_BASE}/api/records/${payload.id}` : `${API_BASE}/api/records`,
@@ -886,6 +886,25 @@ export default function App() {
   }, [monitoriaDashboardRows]);
 
   const exportXlsx = () => {
+    if (view === 'naoEnvio') {
+      const data = filtered.map((r) => ({
+        "Data": formatDateForExport(r.data),
+        "Nome do Encarregado": r.encarregado || "",
+        "Filial": r.filial || "",
+        "OS": r.os || "",
+        "Motivo do Não Envio": r.naoEnvio || "",
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      ws["!cols"] = [
+        { wch: 14 }, { wch: 24 }, { wch: 18 }, { wch: 16 }, { wch: 40 }
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "NaoEnvio");
+      const suffix = monthFilter === "all" ? new Date().toISOString().slice(0, 10) : `${monthFilter}-historic`;
+      XLSX.writeFile(wb, `nao_envio_${suffix}.xlsx`);
+      return;
+    }
+
     if (view === 'monitoria') {
       const data = filtered.map((r) => ({
         "Data da Filmagem": formatDateForExport(r.dataFilmagem || r.data),
@@ -953,6 +972,33 @@ export default function App() {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
     
+    if (view === "naoEnvio") {
+      doc.text("Relatório de Não Envio de RO", 14, 15);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Total: ${filtered.length} registros | Mês: ${formatMonthLabel(monthFilter)}`, 14, 21);
+
+      const tableColumn = ["Data", "Encarregado", "Filial", "OS", "Motivo do Não Envio"];
+      const tableRows = filtered.map((r) => [
+        formatDateForExport(r.data),
+        r.encarregado || "-",
+        r.filial || "-",
+        r.os || "-",
+        r.naoEnvio || "-",
+      ]);
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 25,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [232, 147, 12], textColor: 20 },
+      });
+      const suffix = monthFilter === "all" ? new Date().toISOString().slice(0, 10) : `${monthFilter}-historic`;
+      doc.save(`nao_envio_${suffix}.pdf`);
+      return;
+    }
+
     if (view === "monitoria") {
       doc.text("Relatório de Monitoria de Filmagem", 14, 15);
       doc.setFontSize(9);
@@ -2661,17 +2707,28 @@ export default function App() {
       {/* ABA NÃO ENVIO */}
       {view === "naoEnvio" && (
         <div className="card-box">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-            <div className="disp" style={{ fontSize: 17, fontWeight: 700, letterSpacing: "0.01em" }}>
-              REGISTRO DE NÃO ENVIO DE RO
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 8, height: 24, background: "#E8930C", borderRadius: 4 }}></div>
+              <div className="disp" style={{ fontSize: 20, fontWeight: 800, letterSpacing: "0.02em" }}>
+                {editingId ? "EDITAR NÃO ENVIO DE RO" : "REGISTRO DE NÃO ENVIO DE RO"}
+              </div>
             </div>
             {editingId && (
-              <button className="btn-ghost" onClick={cancelEdit}>Cancelar edição</button>
+              <button className="btn-ghost" onClick={cancelEdit} style={{ height: 36, padding: "0 14px", fontSize: 12 }}>
+                Cancelar edição
+              </button>
             )}
           </div>
+
           <div className="grid-4">
             <div>
-              <label className="field-label">Data *</label>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <label className="field-label" style={{ margin: 0 }}>Data</label>
+                <button type="button" onClick={() => update("data", getTodayDate())} className="btn-quick-today">
+                  <Calendar size={12} /> Hoje
+                </button>
+              </div>
               <input
                 type="date"
                 className="field-input"
@@ -2680,7 +2737,7 @@ export default function App() {
               />
             </div>
             <div>
-              <label className="field-label">Nome do Encarregado *</label>
+              <label className="field-label">Nome do Encarregado</label>
               <input
                 type="text"
                 className="field-input"
@@ -2694,56 +2751,59 @@ export default function App() {
               <input
                 type="text"
                 className="field-input"
-                placeholder="Ex: Baixada"
+                placeholder="Ex: Baixada, Oeste, Cantagalo..."
                 value={form.filial}
                 onChange={(e) => setForm((f) => ({ ...f, filial: e.target.value }))}
               />
             </div>
             <div>
-              <label className="field-label">OS *</label>
+              <label className="field-label">Número da OS</label>
               <input
                 type="text"
                 className="field-input"
                 placeholder="Nº da OS"
                 value={form.os}
                 onChange={(e) => setForm((f) => ({ ...f, os: e.target.value }))}
+                style={{ fontWeight: 600, color: "#E8930C" }}
               />
             </div>
           </div>
+
           <div style={{ marginBottom: 20 }}>
-            <label className="field-label">Descrição do não envio *</label>
+            <label className="field-label">Descrição do Motivo de Não Envio</label>
             <textarea
               className="field-input"
-              style={{ minHeight: 100, resize: "vertical", fontFamily: "inherit" }}
-              placeholder="Informe o motivo do não envio da RO"
+              style={{ minHeight: 90, resize: "vertical", fontFamily: "inherit" }}
+              placeholder="Informe o motivo ou justificativa do não envio da RO..."
               value={form.naoEnvio}
               onChange={(e) => setForm((f) => ({ ...f, naoEnvio: e.target.value }))}
             />
           </div>
-          <div style={{ display: "flex", gap: 10 }}>
+
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
             <button
               className="btn-primary"
-              disabled={!(form.data && form.encarregado && form.os && form.naoEnvio.trim())}
               onClick={handleSubmit}
             >
-              <Plus size={16} /> {editingId ? "Salvar alterações" : "Registrar não envio"}
+              <Plus size={18} /> {editingId ? "Salvar Alterações" : "Registrar Não Envio"}
             </button>
             <button className="btn-ghost" onClick={() => { setForm(EMPTY_NAO_ENVIO); setEditingId(null); }}>
-              Limpar
+              Limpar Campos
             </button>
           </div>
+
           <div className="grid-3" style={{ marginTop: 24 }}>
-            <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 18 }}>
-              <div style={{ fontSize: 12, color: "#6B7580", marginBottom: 8 }}>Total de não envios</div>
+            <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 10, padding: 18 }}>
+              <div style={{ fontSize: 12, color: "#8A93A0", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Total de Não Envios</div>
               <div className="disp" style={{ fontSize: 32, fontWeight: 800, color: "#E8930C" }}>{naoEnvioSummary.total}</div>
             </div>
-            <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 18 }}>
-              <div style={{ fontSize: 12, color: "#6B7580", marginBottom: 8 }}>Encarregados hoje</div>
+            <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 10, padding: 18 }}>
+              <div style={{ fontSize: 12, color: "#8A93A0", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Encarregados Hoje</div>
               <div className="disp" style={{ fontSize: 32, fontWeight: 800, color: "#2F9E52" }}>{naoEnvioSummary.today}</div>
               <div style={{ fontSize: 11, color: "#8A93A0", marginTop: 6 }}>{naoEnvioSummary.todayLabel}</div>
             </div>
-            <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 18 }}>
-              <div style={{ fontSize: 12, color: "#6B7580", marginBottom: 8 }}>Encarregados esta semana</div>
+            <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 10, padding: 18 }}>
+              <div style={{ fontSize: 12, color: "#8A93A0", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Encarregados Esta Semana</div>
               <div className="disp" style={{ fontSize: 32, fontWeight: 800, color: "#4D8FFF" }}>{naoEnvioSummary.week}</div>
               <div style={{ fontSize: 11, color: "#8A93A0", marginTop: 6 }}>{naoEnvioSummary.currentWeek}</div>
             </div>
@@ -2751,9 +2811,37 @@ export default function App() {
 
           <div className="table-container" style={{ marginTop: 24 }}>
             <div className="table-header-bar">
-              <div className="disp" style={{ fontSize: 15, fontWeight: 700 }}>Registros de não envio</div>
-              <div style={{ color: "#8A93A0", fontSize: 12 }}>{filtered.length} itens</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", flex: 1 }}>
+                <input
+                  type="text"
+                  placeholder="Filtrar não envio por OS, encarregado, filial..."
+                  className="field-input"
+                  style={{ maxWidth: 360 }}
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                />
+                <select
+                  value={monthFilter}
+                  onChange={(e) => setMonthFilter(e.target.value)}
+                  className="field-input"
+                  style={{ maxWidth: 180 }}
+                >
+                  <option value="all">Todos os meses</option>
+                  {monthOptions.map((month) => (
+                    <option key={month} value={month}>{formatMonthLabel(month)}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button className="btn-ghost" onClick={exportXlsx}>
+                  <Download size={14} /> XLS
+                </button>
+                <button className="btn-ghost" onClick={exportPdf}>
+                  <Download size={14} /> PDF
+                </button>
+              </div>
             </div>
+
             <div style={{ overflowX: "auto" }}>
               <table>
                 <thead>
@@ -2762,24 +2850,41 @@ export default function App() {
                     <th>Encarregado</th>
                     <th>Filial</th>
                     <th>OS</th>
-                    <th>Não envio</th>
+                    <th>Motivo do Não Envio</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {pageRows.length === 0 && (
                     <tr>
-                      <td colSpan={5} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
+                      <td colSpan={6} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
                         Nenhum registro de não envio encontrado.
                       </td>
                     </tr>
                   )}
                   {pageRows.map((r) => (
                     <tr key={r.id}>
-                      <td>{r.data}</td>
-                      <td>{r.encarregado}</td>
+                      <td>{formatDateForExport(r.data)}</td>
+                      <td>{r.encarregado || "—"}</td>
                       <td>{r.filial || "—"}</td>
-                      <td style={{ color: "#E8930C", fontWeight: 600 }}>{r.os}</td>
-                      <td>{r.naoEnvio}</td>
+                      <td style={{ color: "#E8930C", fontWeight: 700 }}>{r.os || "—"}</td>
+                      <td style={{ maxWidth: 340 }}>{r.naoEnvio || "—"}</td>
+                      <td>
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          <button
+                            onClick={() => handleEdit(r)}
+                            style={{ background: "none", border: "1px solid #2E3540", color: "#8A93A0", borderRadius: 4, padding: "5px 9px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDelete(r.id)}
+                            style={{ background: "none", border: "1px solid #2E3540", color: "#D64545", borderRadius: 4, padding: "5px 8px", cursor: "pointer", display: "flex", alignItems: "center" }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
