@@ -83,6 +83,7 @@ const INSPECTORES_ENEL = [
   "GLAUCIA OLIVEIRA",
   "JOSE DOS REIS",
   "DEBORA BRASIL",
+  "SUELLEN Christine Barbosa",
 ];
 
 const FISCAIS_OPTIONS = [
