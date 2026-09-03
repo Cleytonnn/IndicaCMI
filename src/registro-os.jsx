@@ -6,7 +6,7 @@ import {
   Zap, Plus, Trash2, Download, Camera, CheckCircle2, XCircle,
   LayoutGrid, ClipboardList, AlertTriangle, UserPlus, Film,
   Calendar, Building2, Users, ShieldCheck, FileText, Check,
-  Layers, ChevronRight, Edit3, Sparkles
+  Layers, ChevronRight, Edit3, Sparkles, MapPin
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -60,6 +60,8 @@ const EMPTY_NAO_ENVIO = {
 };
 
 const EMPTY_MONITORIA = {
+  contrato: "LIGHT",
+  regional: "",
   dataFilmagem: "",
   placaVeiculo: "",
   fiscal: "",
@@ -266,6 +268,7 @@ export default function App() {
   const [view, setView] = useState("registro"); // "registro" | "monitoria" | "dashboard" | "regras" | "naoEnvio"
   const [dashboardTab, setDashboardTab] = useState("os"); // "os" | "monitoria"
   const [mobileTableView, setMobileTableView] = useState("cards"); // "cards" | "table"
+  const [mobileMonitoriaView, setMobileMonitoriaView] = useState("cards"); // "cards" | "table"
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [formMonitoria, setFormMonitoria] = useState(EMPTY_MONITORIA);
@@ -339,6 +342,18 @@ export default function App() {
         tipoInspecao: isCurrentInspecaoValid ? f.tipoInspecao : "",
         processo: isCurrentInspecaoValid ? f.processo : "",
         quemInspecionou: defaultQuem,
+      };
+    });
+  };
+
+  const handleContratoChangeMonitoria = (contrato) => {
+    setFormMonitoria((f) => {
+      const validRegionais = REGIONAIS_POR_CONTRATO[contrato] || [];
+      const isCurrentRegionalValid = validRegionais.includes(f.regional);
+      return {
+        ...f,
+        contrato,
+        regional: isCurrentRegionalValid ? f.regional : "",
       };
     });
   };
@@ -446,8 +461,8 @@ export default function App() {
     if (formMonitoria.houveNaoConformidade === "Sim" && !formMonitoria.descNaoConformidade.trim()) return;
 
     const payload = editingId 
-      ? { ...formMonitoria, id: editingId, data: formMonitoria.dataFilmagem }
-      : { ...formMonitoria, id: generateId(), data: formMonitoria.dataFilmagem };
+      ? { ...formMonitoria, id: editingId, data: formMonitoria.dataFilmagem, contrato: formMonitoria.contrato || "LIGHT" }
+      : { ...formMonitoria, id: generateId(), data: formMonitoria.dataFilmagem, contrato: formMonitoria.contrato || "LIGHT" };
 
     try {
       const res = await fetch(
@@ -481,9 +496,13 @@ export default function App() {
 
   const handleEdit = (row) => {
     if (row.tipoRegistro === "monitoria") {
+      const isEnel = row.contrato === "ENEL" ||
+        ["Cantagalo", "Macaé", "Pádua", "Angra", "CANTAGALO", "MACAÉ", "PADUA", "ANGRA"].includes(row.regional);
+      const inferredContrato = row.contrato || (isEnel ? "ENEL" : "LIGHT");
       setFormMonitoria({
         ...EMPTY_MONITORIA,
         ...row,
+        contrato: inferredContrato,
         eletricistas: Array.isArray(row.eletricistas) && row.eletricistas.length > 0 ? row.eletricistas : [""],
         motoristas: Array.isArray(row.motoristas) && row.motoristas.length > 0 ? row.motoristas : [""],
       });
@@ -601,11 +620,14 @@ export default function App() {
     if (dashboardMonth !== "all") {
       list = list.filter((r) => (r.dataFilmagem || r.data) && (r.dataFilmagem || r.data).slice(0, 7) === dashboardMonth);
     }
+    if (dashboardContrato !== "all") {
+      list = list.filter((r) => getContrato(r) === dashboardContrato);
+    }
     if (dashboardSetor !== "all") {
       list = list.filter((r) => r.setor === dashboardSetor);
     }
     return list;
-  }, [monitoriaRows, dashboardMonth, dashboardSetor]);
+  }, [monitoriaRows, dashboardMonth, dashboardContrato, dashboardSetor]);
 
   const contratoStats = useMemo(() => {
     const monthList = dashboardMonth === "all"
@@ -625,6 +647,25 @@ export default function App() {
       enel: enelCount,
     };
   }, [registroRows, dashboardMonth]);
+
+  const contratoStatsMonitoria = useMemo(() => {
+    const monthList = dashboardMonth === "all"
+      ? monitoriaRows
+      : monitoriaRows.filter((r) => (r.dataFilmagem || r.data) && (r.dataFilmagem || r.data).slice(0, 7) === dashboardMonth);
+
+    let lightCount = 0;
+    let enelCount = 0;
+    monthList.forEach((r) => {
+      if (getContrato(r) === "ENEL") enelCount += 1;
+      else lightCount += 1;
+    });
+
+    return {
+      total: monthList.length,
+      light: lightCount,
+      enel: enelCount,
+    };
+  }, [monitoriaRows, dashboardMonth]);
 
   function getWeekKey(value) {
     const date = new Date(value);
@@ -828,6 +869,7 @@ export default function App() {
     let naoConformeCount = 0;
 
     const setorMap = {};
+    const regionalMap = {};
     const agenteMap = {};
     const tratativaMap = {};
     const fiscalMap = {};
@@ -842,6 +884,12 @@ export default function App() {
       if (!setorMap[st]) setorMap[st] = { name: st, Conforme: 0, "Não conforme": 0 };
       if (isNaoConforme) setorMap[st]["Não conforme"]++;
       else setorMap[st].Conforme++;
+
+      // Regional
+      const reg = r.regional || "Não informado";
+      if (!regionalMap[reg]) regionalMap[reg] = { name: reg, Conforme: 0, "Não conforme": 0 };
+      if (isNaoConforme) regionalMap[reg]["Não conforme"]++;
+      else regionalMap[reg].Conforme++;
 
       // Agente Agressor
       if (r.agenteAgressor) {
@@ -862,6 +910,7 @@ export default function App() {
 
     const taxaConformidade = total > 0 ? Math.round((conformeCount / total) * 100) : 100;
     const setorData = Object.values(setorMap);
+    const regionalData = Object.values(regionalMap);
     const agenteData = Object.entries(agenteMap)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
@@ -879,6 +928,7 @@ export default function App() {
       naoConformeCount,
       taxaConformidade,
       setorData,
+      regionalData,
       agenteData,
       tratativaData,
       fiscalData,
@@ -908,6 +958,8 @@ export default function App() {
     if (view === 'monitoria') {
       const data = filtered.map((r) => ({
         "Data da Filmagem": formatDateForExport(r.dataFilmagem || r.data),
+        "Contrato": getContrato(r),
+        "Regional": r.regional || "",
         "Placa do Veículo": r.placaVeiculo || "",
         "Fiscal": r.fiscal || "",
         "Setor": r.setor || "",
@@ -921,7 +973,7 @@ export default function App() {
       }));
       const ws = XLSX.utils.json_to_sheet(data);
       ws["!cols"] = [
-        { wch: 14 }, { wch: 14 }, { wch: 22 }, { wch: 18 }, { wch: 22 },
+        { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 22 }, { wch: 18 }, { wch: 22 },
         { wch: 30 }, { wch: 24 }, { wch: 20 }, { wch: 32 }, { wch: 24 }, { wch: 28 }
       ];
       const wb = XLSX.utils.book_new();
@@ -1006,11 +1058,13 @@ export default function App() {
       doc.text(`Total: ${filtered.length} registros | Mês: ${formatMonthLabel(monthFilter)}`, 14, 21);
 
       const tableColumn = [
-        "Data Filmagem", "Placa", "Fiscal", "Setor", "Supervisor",
+        "Data", "Contrato", "Regional", "Placa", "Fiscal", "Setor", "Supervisor",
         "Eletricistas", "Motoristas", "Conformidade", "Agente Agressor", "Tratativas"
       ];
       const tableRows = filtered.map((r) => [
         formatDateForExport(r.dataFilmagem || r.data),
+        getContrato(r),
+        r.regional || "-",
         r.placaVeiculo || "-",
         r.fiscal || "-",
         r.setor || "-",
@@ -2266,171 +2320,269 @@ export default function App() {
       {view === "monitoria" && (
         <>
           <div className="card-box">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-              <div className="disp" style={{ fontSize: 18, fontWeight: 800, letterSpacing: "0.01em", display: "flex", alignItems: "center", gap: 8 }}>
-                <Film size={20} color="#E8930C" />
-                {editingId ? "EDITAR MONITORIA DE FILMAGEM" : "NOVA MONITORIA DE FILMAGEM"}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 8, height: 24, background: "#E8930C", borderRadius: 4 }}></div>
+                <div className="disp" style={{ fontSize: 20, fontWeight: 800, letterSpacing: "0.02em" }}>
+                  {editingId ? "EDITAR MONITORIA DE FILMAGEM" : "NOVA MONITORIA DE FILMAGEM"}
+                </div>
               </div>
               {editingId && (
-                <button className="btn-ghost" onClick={cancelEdit}>Cancelar edição</button>
+                <button className="btn-ghost" onClick={cancelEdit} style={{ height: 36, padding: "0 14px", fontSize: 12 }}>
+                  Cancelar edição
+                </button>
               )}
             </div>
 
-            <div className="grid-3">
-              <div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                  <label className="field-label" style={{ margin: 0 }}>Data da Filmagem *</label>
-                  <button type="button" onClick={setFormMonitoriaToday} className="btn-quick-today">
-                    <Calendar size={12} /> Hoje
-                  </button>
+            {/* SEÇÃO 1: CONTRATO & REGIONAL DA MONITORIA */}
+            <div className="form-section-card">
+              <div className="form-section-header">
+                <div className="form-section-title">
+                  <Building2 size={16} /> 1. Contrato, Regional & Veículo
                 </div>
-                <input
-                  type="date"
-                  className="field-input"
-                  value={formMonitoria.dataFilmagem}
-                  onChange={(e) => updateMonitoria("dataFilmagem", e.target.value)}
-                />
               </div>
-              <div>
-                <label className="field-label">Placa do Veículo *</label>
-                <input
-                  type="text"
-                  className="field-input"
-                  placeholder="Ex: ABC-1234 / ABC1D23"
-                  value={formMonitoria.placaVeiculo}
-                  onChange={(e) => updateMonitoria("placaVeiculo", e.target.value.toUpperCase())}
-                />
+
+              {/* Contrato Toggle */}
+              <div style={{ marginBottom: 16 }}>
+                <label className="field-label">Selecione o Contrato *</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {['LIGHT', 'ENEL'].map((opt) => {
+                    const active = (formMonitoria.contrato || "LIGHT") === opt;
+                    const isLight = opt === 'LIGHT';
+                    return (
+                      <div
+                        key={opt}
+                        className="radio-pill"
+                        onClick={() => handleContratoChangeMonitoria(opt)}
+                        style={{
+                          background: active 
+                            ? (isLight ? "rgba(56, 189, 248, 0.18)" : "rgba(192, 132, 252, 0.18)") 
+                            : "#1C2126",
+                          borderColor: active 
+                            ? (isLight ? "#38BDF8" : "#C084FC") 
+                            : "#2E3540",
+                          color: active 
+                            ? (isLight ? "#38BDF8" : "#C084FC") 
+                            : "#8A93A0",
+                          fontSize: 14,
+                          fontWeight: 800,
+                          gap: 8,
+                          boxShadow: active ? `0 0 12px ${isLight ? 'rgba(56, 189, 248, 0.25)' : 'rgba(192, 132, 252, 0.25)'}` : "none",
+                        }}
+                      >
+                        {active && <Check size={16} />}
+                        {opt}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <div>
-                <label className="field-label">Fiscal</label>
-                <select
-                  className="field-input"
-                  value={formMonitoria.fiscal}
-                  onChange={(e) => updateMonitoria("fiscal", e.target.value)}
-                  style={{ appearance: "auto" }}
-                >
-                  <option value="">Selecione o fiscal...</option>
-                  {FISCAIS_OPTIONS.map((name) => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
+
+              {/* Regional Chips */}
+              <div style={{ marginBottom: 16 }}>
+                <label className="field-label">
+                  <MapPin size={13} />
+                  Regional ({(formMonitoria.contrato || "LIGHT")})
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: `repeat(${(REGIONAIS_POR_CONTRATO[formMonitoria.contrato || "LIGHT"] || []).length || 2}, 1fr)`, gap: 8 }}>
+                  {(REGIONAIS_POR_CONTRATO[formMonitoria.contrato || "LIGHT"] || []).map((opt) => {
+                    const active = formMonitoria.regional === opt;
+                    return (
+                      <div
+                        key={opt}
+                        className="radio-pill"
+                        onClick={() => updateMonitoria("regional", opt)}
+                        style={{
+                          background: active ? "#1F6B3A" : "#1C2126",
+                          borderColor: active ? "#2F9E52" : "#2E3540",
+                          color: active ? "#EAF4EE" : "#8A93A0",
+                          fontSize: 13,
+                          fontWeight: 700,
+                          padding: "8px 6px",
+                        }}
+                      >
+                        {opt}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid-2" style={{ gridTemplateColumns: "1fr 1fr", margin: 0 }}>
+                {/* Data Filmagem */}
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <label className="field-label" style={{ margin: 0 }}>Data da Filmagem *</label>
+                    <button type="button" onClick={setFormMonitoriaToday} className="btn-quick-today">
+                      <Calendar size={12} /> Hoje
+                    </button>
+                  </div>
+                  <input
+                    type="date"
+                    className="field-input"
+                    value={formMonitoria.dataFilmagem}
+                    onChange={(e) => updateMonitoria("dataFilmagem", e.target.value)}
+                  />
+                </div>
+
+                {/* Placa do Veículo */}
+                <div>
+                  <label className="field-label">Placa do Veículo *</label>
+                  <input
+                    type="text"
+                    className="field-input"
+                    placeholder="Ex: ABC-1234 / ABC1D23"
+                    value={formMonitoria.placaVeiculo}
+                    onChange={(e) => updateMonitoria("placaVeiculo", e.target.value.toUpperCase())}
+                    style={{ fontWeight: 700, color: "#E8930C" }}
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="grid-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-              <div>
-                <label className="field-label">Setor</label>
-                <select
-                  className="field-input"
-                  value={formMonitoria.setor}
-                  onChange={(e) => updateMonitoria("setor", e.target.value)}
-                  style={{ appearance: "auto" }}
-                >
-                  <option value="">Selecione o setor...</option>
-                  {SETORES_OPTIONS.map((name) => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
+            {/* SEÇÃO 2: FISCAL, SETOR & SUPERVISÃO */}
+            <div className="form-section-card">
+              <div className="form-section-header">
+                <div className="form-section-title">
+                  <Users size={16} /> 2. Fiscalização, Setor & Equipe
+                </div>
               </div>
-              <div>
-                <label className="field-label">Supervisor Responsável</label>
-                <select
-                  className="field-input"
-                  value={formMonitoria.supervisorResponsavel}
-                  onChange={(e) => updateMonitoria("supervisorResponsavel", e.target.value)}
-                  style={{ appearance: "auto" }}
-                >
-                  <option value="">Selecione o supervisor...</option>
-                  {SUPERVISORES_OPTIONS.map((name) => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
 
-            {/* Eletricistas e Motoristas Dinâmicos */}
-            <div className="grid-2" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
-              {/* Eletricistas */}
-              <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                  <label className="field-label" style={{ margin: 0, color: "#E8EBEE" }}>Eletricistas</label>
-                  <button
-                    type="button"
-                    onClick={handleAddEletricista}
-                    className="btn-ghost"
-                    style={{ padding: "4px 10px", fontSize: 11, gap: 4 }}
+              <div className="grid-3">
+                <div>
+                  <label className="field-label">Fiscal Responsável</label>
+                  <select
+                    className="field-input"
+                    value={formMonitoria.fiscal}
+                    onChange={(e) => updateMonitoria("fiscal", e.target.value)}
+                    style={{ appearance: "auto" }}
                   >
-                    <UserPlus size={13} /> Adicionar Eletricista
-                  </button>
+                    <option value="">Selecione o fiscal...</option>
+                    {FISCAIS_OPTIONS.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
                 </div>
-                <div style={{ display: "grid", gap: 10 }}>
-                  {formMonitoria.eletricistas.map((ele, idx) => (
-                    <div key={idx} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <input
-                        type="text"
-                        className="field-input"
-                        placeholder={`Nome completo do Eletricista ${idx + 1}`}
-                        value={ele}
-                        onChange={(e) => handleUpdateEletricista(idx, e.target.value)}
-                      />
-                      {formMonitoria.eletricistas.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveEletricista(idx)}
-                          style={{ background: "none", border: "1px solid #2E3540", color: "#D64545", borderRadius: 4, padding: "8px 10px", cursor: "pointer" }}
-                          title="Remover eletricista"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                <div>
+                  <label className="field-label">Setor</label>
+                  <select
+                    className="field-input"
+                    value={formMonitoria.setor}
+                    onChange={(e) => updateMonitoria("setor", e.target.value)}
+                    style={{ appearance: "auto" }}
+                  >
+                    <option value="">Selecione o setor...</option>
+                    {SETORES_OPTIONS.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="field-label">Supervisor Responsável</label>
+                  <select
+                    className="field-input"
+                    value={formMonitoria.supervisorResponsavel}
+                    onChange={(e) => updateMonitoria("supervisorResponsavel", e.target.value)}
+                    style={{ appearance: "auto" }}
+                  >
+                    <option value="">Selecione o supervisor...</option>
+                    {SUPERVISORES_OPTIONS.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              {/* Motoristas */}
-              <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                  <label className="field-label" style={{ margin: 0, color: "#E8EBEE" }}>Motoristas</label>
-                  <button
-                    type="button"
-                    onClick={handleAddMotorista}
-                    className="btn-ghost"
-                    style={{ padding: "4px 10px", fontSize: 11, gap: 4 }}
-                  >
-                    <UserPlus size={13} /> Adicionar Motorista
-                  </button>
+              {/* Eletricistas e Motoristas Dinâmicos */}
+              <div className="grid-2" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start", margin: 0 }}>
+                {/* Eletricistas */}
+                <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                    <label className="field-label" style={{ margin: 0, color: "#E8EBEE" }}>Eletricistas</label>
+                    <button
+                      type="button"
+                      onClick={handleAddEletricista}
+                      className="btn-ghost"
+                      style={{ padding: "4px 10px", fontSize: 11, gap: 4 }}
+                    >
+                      <UserPlus size={13} /> Adicionar
+                    </button>
+                  </div>
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {formMonitoria.eletricistas.map((ele, idx) => (
+                      <div key={idx} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <input
+                          type="text"
+                          className="field-input"
+                          placeholder={`Nome do Eletricista ${idx + 1}`}
+                          value={ele}
+                          onChange={(e) => handleUpdateEletricista(idx, e.target.value)}
+                        />
+                        {formMonitoria.eletricistas.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEletricista(idx)}
+                            style={{ background: "none", border: "1px solid #2E3540", color: "#D64545", borderRadius: 4, padding: "8px 10px", cursor: "pointer" }}
+                            title="Remover eletricista"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ display: "grid", gap: 10 }}>
-                  {formMonitoria.motoristas.map((mot, idx) => (
-                    <div key={idx} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <input
-                        type="text"
-                        className="field-input"
-                        placeholder={`Nome do Motorista ${idx + 1}`}
-                        value={mot}
-                        onChange={(e) => handleUpdateMotorista(idx, e.target.value)}
-                      />
-                      {formMonitoria.motoristas.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveMotorista(idx)}
-                          style={{ background: "none", border: "1px solid #2E3540", color: "#D64545", borderRadius: 4, padding: "8px 10px", cursor: "pointer" }}
-                          title="Remover motorista"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+
+                {/* Motoristas */}
+                <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                    <label className="field-label" style={{ margin: 0, color: "#E8EBEE" }}>Motoristas</label>
+                    <button
+                      type="button"
+                      onClick={handleAddMotorista}
+                      className="btn-ghost"
+                      style={{ padding: "4px 10px", fontSize: 11, gap: 4 }}
+                    >
+                      <UserPlus size={13} /> Adicionar
+                    </button>
+                  </div>
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {formMonitoria.motoristas.map((mot, idx) => (
+                      <div key={idx} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <input
+                          type="text"
+                          className="field-input"
+                          placeholder={`Nome do Motorista ${idx + 1}`}
+                          value={mot}
+                          onChange={(e) => handleUpdateMotorista(idx, e.target.value)}
+                        />
+                        {formMonitoria.motoristas.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMotorista(idx)}
+                            style={{ background: "none", border: "1px solid #2E3540", color: "#D64545", borderRadius: 4, padding: "8px 10px", cursor: "pointer" }}
+                            title="Remover motorista"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Não conformidades e tratativas */}
-            <div style={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 8, padding: 18, marginBottom: 20 }}>
+            {/* SEÇÃO 3: AVALIAÇÃO DE CONFORMIDADE DA MONITORIA */}
+            <div className="form-section-card">
+              <div className="form-section-header">
+                <div className="form-section-title">
+                  <ShieldCheck size={16} /> 3. Avaliação de Conformidade & Tratativas
+                </div>
+              </div>
+
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-                <label className="field-label" style={{ margin: 0, fontSize: 12, color: "#E8EBEE" }}>Houve Não Conformidades?</label>
+                <label className="field-label" style={{ margin: 0, fontSize: 12, color: "#E8EBEE" }}>Houve Não Conformidades na Filmagem?</label>
                 <div style={{ display: "flex", gap: 8 }}>
                   <div
                     className="radio-pill"
@@ -2470,7 +2622,7 @@ export default function App() {
                     </label>
                     <textarea
                       className="field-input"
-                      style={{ resize: "vertical", minHeight: 70, fontFamily: "inherit" }}
+                      style={{ resize: "vertical", minHeight: 75, fontFamily: "inherit" }}
                       placeholder="Descreva detalhadamente a não conformidade observada na filmagem..."
                       value={formMonitoria.descNaoConformidade}
                       onChange={(e) => updateMonitoria("descNaoConformidade", e.target.value)}
@@ -2511,31 +2663,31 @@ export default function App() {
               )}
             </div>
 
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", marginTop: 20 }}>
               <button
                 className="btn-primary"
                 disabled={!formMonitoria.dataFilmagem || !formMonitoria.placaVeiculo || (formMonitoria.houveNaoConformidade === "Sim" && !formMonitoria.descNaoConformidade.trim())}
                 onClick={handleSubmitMonitoria}
               >
-                <Plus size={16} /> {editingId ? "Salvar alterações de monitoria" : "Registrar Monitoria"}
+                <Plus size={18} /> {editingId ? "Salvar Alterações" : "Registrar Monitoria"}
               </button>
               {(!formMonitoria.dataFilmagem || !formMonitoria.placaVeiculo) && (
-                <span style={{ fontSize: 12, color: "#6B7580" }}>
-                  Preencha a data da filmagem e a placa do veículo para salvar.
+                <span style={{ fontSize: 12, color: "#8A93A0" }}>
+                  ⚠️ Preencha a data da filmagem e a placa do veículo para salvar.
                 </span>
               )}
             </div>
           </div>
 
-          {/* Tabela de Monitoria */}
+          {/* Tabela / Cards de Monitoria */}
           <div className="table-container">
             <div className="table-header-bar">
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", flex: 1 }}>
                 <input
                   type="text"
-                  placeholder="Filtrar por placa, fiscal, setor, supervisor..."
+                  placeholder="Filtrar por placa, fiscal, setor, supervisor, regional..."
                   className="field-input"
-                  style={{ maxWidth: 340 }}
+                  style={{ maxWidth: 360 }}
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                 />
@@ -2551,7 +2703,32 @@ export default function App() {
                   ))}
                 </select>
               </div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ display: "flex", background: "#1C2126", padding: 3, borderRadius: 6, border: "1px solid #2E3540" }}>
+                  <button
+                    type="button"
+                    onClick={() => setMobileMonitoriaView("cards")}
+                    style={{
+                      border: "none", cursor: "pointer", padding: "6px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700,
+                      background: mobileMonitoriaView === "cards" ? "#E8930C" : "transparent",
+                      color: mobileMonitoriaView === "cards" ? "#14181C" : "#8A93A0",
+                    }}
+                  >
+                    Cards
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileMonitoriaView("table")}
+                    style={{
+                      border: "none", cursor: "pointer", padding: "6px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700,
+                      background: mobileMonitoriaView === "table" ? "#E8930C" : "transparent",
+                      color: mobileMonitoriaView === "table" ? "#14181C" : "#8A93A0",
+                    }}
+                  >
+                    Tabela
+                  </button>
+                </div>
                 <button className="btn-ghost" onClick={exportXlsx}>
                   <Download size={14} /> XLS
                 </button>
@@ -2561,99 +2738,200 @@ export default function App() {
               </div>
             </div>
 
-            <div style={{ overflowX: "auto" }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Data Filmagem</th>
-                    <th>Placa</th>
-                    <th>Fiscal</th>
-                    <th>Setor</th>
-                    <th>Supervisor</th>
-                    <th>Eletricistas</th>
-                    <th>Motoristas</th>
-                    <th>Conformidade</th>
-                    <th>Não Conformidade</th>
-                    <th>Agente Agressor</th>
-                    <th>Tratativas</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageRows.length === 0 && (
-                    <tr>
-                      <td colSpan={12} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
-                        Nenhum registro de monitoria encontrado.
-                      </td>
-                    </tr>
-                  )}
-                  {pageRows.map((r) => {
-                    const isNaoConforme = r.houveNaoConformidade === "Sim";
-                    const eles = Array.isArray(r.eletricistas) ? r.eletricistas.filter(Boolean) : [];
-                    const mots = Array.isArray(r.motoristas) ? r.motoristas.filter(Boolean) : [];
-                    return (
-                      <tr key={r.id}>
-                        <td>{r.dataFilmagem || r.data}</td>
-                        <td style={{ color: "#E8930C", fontWeight: 700 }}>{r.placaVeiculo}</td>
-                        <td>{r.fiscal || "—"}</td>
-                        <td>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: "#1B2F3E", color: "#38BDF8" }}>
-                            {r.setor || "—"}
-                          </span>
-                        </td>
-                        <td>{r.supervisorResponsavel || "—"}</td>
-                        <td>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
-                            {eles.length ? eles.map((name, i) => <span key={i}>• {name}</span>) : "—"}
+            {mobileMonitoriaView === "cards" ? (
+              <div style={{ padding: "16px 16px 4px 16px" }}>
+                {pageRows.length === 0 ? (
+                  <div style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
+                    Nenhum registro de monitoria encontrado.
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
+                    {pageRows.map((r) => {
+                      const cto = getContrato(r);
+                      const isNaoConforme = r.houveNaoConformidade === "Sim";
+                      const eles = Array.isArray(r.eletricistas) ? r.eletricistas.filter(Boolean) : [];
+                      const mots = Array.isArray(r.motoristas) ? r.motoristas.filter(Boolean) : [];
+
+                      return (
+                        <div key={r.id} className="record-card-mobile">
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                              <span style={{
+                                fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 4,
+                                background: cto === "ENEL" ? "#2B1A4A" : "#1B2F3E",
+                                color: cto === "ENEL" ? "#C084FC" : "#38BDF8",
+                                border: `1px solid ${cto === "ENEL" ? "#7E22CE" : "#0284C7"}`
+                              }}>
+                                {cto}
+                              </span>
+                              {r.regional && (
+                                <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 4, background: "#1C2126", color: "#9AA4B2", border: "1px solid #2E3540" }}>
+                                  {r.regional}
+                                </span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: 12, color: "#8A93A0" }}>{formatDateForExport(r.dataFilmagem || r.data)}</span>
                           </div>
-                        </td>
-                        <td>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
-                            {mots.length ? mots.map((name, i) => <span key={i}>• {name}</span>) : "—"}
-                          </div>
-                        </td>
-                        <td>
-                          <span style={{
-                            fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20,
-                            background: !isNaoConforme ? "#1F6B3A" : "#7A2626",
-                            color: !isNaoConforme ? "#EAF4EE" : "#FBEAEA",
-                          }}>
-                            {isNaoConforme ? "Não Conforme" : "Conforme"}
-                          </span>
-                        </td>
-                        <td style={{ maxWidth: 220, fontSize: 12, color: isNaoConforme ? "#FBEAEA" : "#6B7580" }}>
-                          {r.descNaoConformidade || "—"}
-                        </td>
-                        <td>
-                          {r.agenteAgressor ? (
-                            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: "#2A2016", color: "#E8930C", border: "1px solid #784807" }}>
-                              {r.agenteAgressor}
+
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                            <span style={{ fontSize: 16, fontWeight: 800, color: "#E8930C" }}>
+                              {r.placaVeiculo || "PLACA S/N"}
                             </span>
-                          ) : "—"}
-                        </td>
-                        <td style={{ fontSize: 12 }}>{r.tratativas || "—"}</td>
-                        <td>
-                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                            <span style={{
+                              fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 12,
+                              background: !isNaoConforme ? "#1F6B3A" : "#7A2626",
+                              color: !isNaoConforme ? "#EAF4EE" : "#FBEAEA",
+                            }}>
+                              {isNaoConforme ? "Não Conforme" : "Conforme"}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: 12, display: "grid", gap: 4, color: "#9AA4B2" }}>
+                            <div><strong>Fiscal:</strong> <span style={{ color: "#38BDF8" }}>{r.fiscal || "—"}</span></div>
+                            <div><strong>Setor / Supervisor:</strong> {r.setor || "—"} · {r.supervisorResponsavel || "—"}</div>
+                            {eles.length > 0 && <div><strong>Eletricistas:</strong> {eles.join(", ")}</div>}
+                            {mots.length > 0 && <div><strong>Motoristas:</strong> {mots.join(", ")}</div>}
+                            {r.descNaoConformidade && (
+                              <div style={{ color: "#FCA5A5", background: "#3A1B1B", padding: "6px 8px", borderRadius: 4, marginTop: 4 }}>
+                                ⚠️ <strong>Não conformidade:</strong> {r.descNaoConformidade}
+                              </div>
+                            )}
+                            {r.agenteAgressor && (
+                              <div><strong>Agente:</strong> <span style={{ color: "#E8930C" }}>{r.agenteAgressor}</span></div>
+                            )}
+                            {r.tratativas && <div><strong>Tratativa:</strong> {r.tratativas}</div>}
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, borderTop: "1px solid #28303B", paddingTop: 10, marginTop: 4 }}>
                             <button
                               onClick={() => handleEdit(r)}
-                              style={{ background: "none", border: "1px solid #2E3540", color: "#8A93A0", borderRadius: 4, padding: "5px 9px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}
+                              style={{ background: "#252D37", border: "1px solid #3A4452", color: "#E8EBEE", borderRadius: 6, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}
                             >
-                              Editar
+                              <Edit3 size={13} /> Editar
                             </button>
                             <button
                               onClick={() => handleDelete(r.id)}
-                              style={{ background: "none", border: "1px solid #2E3540", color: "#D64545", borderRadius: 4, padding: "5px 8px", cursor: "pointer", display: "flex", alignItems: "center" }}
+                              style={{ background: "#2D1A1A", border: "1px solid #5A2A2A", color: "#D64545", borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}
                             >
-                              <Trash2 size={13} />
+                              <Trash2 size={14} />
                             </button>
                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Data Filmagem</th>
+                      <th>Contrato</th>
+                      <th>Regional</th>
+                      <th>Placa</th>
+                      <th>Fiscal</th>
+                      <th>Setor</th>
+                      <th>Supervisor</th>
+                      <th>Eletricistas</th>
+                      <th>Motoristas</th>
+                      <th>Conformidade</th>
+                      <th>Não Conformidade</th>
+                      <th>Agente Agressor</th>
+                      <th>Tratativas</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageRows.length === 0 && (
+                      <tr>
+                        <td colSpan={14} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
+                          Nenhum registro de monitoria encontrado.
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    )}
+                    {pageRows.map((r) => {
+                      const cto = getContrato(r);
+                      const isNaoConforme = r.houveNaoConformidade === "Sim";
+                      const eles = Array.isArray(r.eletricistas) ? r.eletricistas.filter(Boolean) : [];
+                      const mots = Array.isArray(r.motoristas) ? r.motoristas.filter(Boolean) : [];
+                      return (
+                        <tr key={r.id}>
+                          <td>{formatDateForExport(r.dataFilmagem || r.data)}</td>
+                          <td>
+                            <span style={{
+                              fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
+                              background: cto === "ENEL" ? "#2B1A4A" : "#1B2F3E",
+                              color: cto === "ENEL" ? "#C084FC" : "#38BDF8",
+                              border: `1px solid ${cto === "ENEL" ? "#7E22CE" : "#0284C7"}`
+                            }}>
+                              {cto}
+                            </span>
+                          </td>
+                          <td>{r.regional || "—"}</td>
+                          <td style={{ color: "#E8930C", fontWeight: 700 }}>{r.placaVeiculo}</td>
+                          <td>{r.fiscal || "—"}</td>
+                          <td>
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: "#1B2F3E", color: "#38BDF8" }}>
+                              {r.setor || "—"}
+                            </span>
+                          </td>
+                          <td>{r.supervisorResponsavel || "—"}</td>
+                          <td>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
+                              {eles.length ? eles.map((name, i) => <span key={i}>• {name}</span>) : "—"}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
+                              {mots.length ? mots.map((name, i) => <span key={i}>• {name}</span>) : "—"}
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{
+                              fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20,
+                              background: !isNaoConforme ? "#1F6B3A" : "#7A2626",
+                              color: !isNaoConforme ? "#EAF4EE" : "#FBEAEA",
+                            }}>
+                              {isNaoConforme ? "Não Conforme" : "Conforme"}
+                            </span>
+                          </td>
+                          <td style={{ maxWidth: 220, fontSize: 12, color: isNaoConforme ? "#FBEAEA" : "#6B7580" }}>
+                            {r.descNaoConformidade || "—"}
+                          </td>
+                          <td>
+                            {r.agenteAgressor ? (
+                              <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: "#2A2016", color: "#E8930C", border: "1px solid #784807" }}>
+                                {r.agenteAgressor}
+                              </span>
+                            ) : "—"}
+                          </td>
+                          <td style={{ fontSize: 12 }}>{r.tratativas || "—"}</td>
+                          <td>
+                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                              <button
+                                onClick={() => handleEdit(r)}
+                                style={{ background: "none", border: "1px solid #2E3540", color: "#8A93A0", borderRadius: 4, padding: "5px 9px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleDelete(r.id)}
+                                style={{ background: "none", border: "1px solid #2E3540", color: "#D64545", borderRadius: 4, padding: "5px 8px", cursor: "pointer", display: "flex", alignItems: "center" }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
             <div style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', borderTop: '1px solid #2E3540' }}>
               <div style={{ color: '#8A93A0', fontSize: 12 }}>
                 Mostrando {pageRows.length} de {sortedFiltered.length} registros
@@ -2699,6 +2977,7 @@ export default function App() {
           dashboardSetor={dashboardSetor}
           setDashboardSetor={setDashboardSetor}
           contratoStats={contratoStats}
+          contratoStatsMonitoria={contratoStatsMonitoria}
           dashboardTab={dashboardTab}
           setDashboardTab={setDashboardTab}
         />
@@ -3072,6 +3351,7 @@ function DashboardView({
   dashboardSetor,
   setDashboardSetor,
   contratoStats,
+  contratoStatsMonitoria,
   dashboardTab,
   setDashboardTab,
 }) {
@@ -3313,6 +3593,45 @@ function DashboardView({
         <>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, color: "#6B7580", textTransform: "uppercase", letterSpacing: "0.08em" }}>Contrato</span>
+              <div style={{ display: "flex", gap: 6, background: "#1C2126", padding: 3, borderRadius: 6, border: "1px solid #2E3540" }}>
+                <button
+                  onClick={() => setDashboardContrato("all")}
+                  style={{
+                    border: "none", cursor: "pointer", padding: "6px 12px", borderRadius: 4, fontSize: 12, fontWeight: 700,
+                    background: dashboardContrato === "all" ? "#E8930C" : "transparent",
+                    color: dashboardContrato === "all" ? "#14181C" : "#8A93A0",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  Todos ({contratoStatsMonitoria.total})
+                </button>
+                <button
+                  onClick={() => setDashboardContrato("LIGHT")}
+                  style={{
+                    border: "none", cursor: "pointer", padding: "6px 12px", borderRadius: 4, fontSize: 12, fontWeight: 700,
+                    background: dashboardContrato === "LIGHT" ? "#38BDF8" : "transparent",
+                    color: dashboardContrato === "LIGHT" ? "#14181C" : "#8A93A0",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  LIGHT ({contratoStatsMonitoria.light})
+                </button>
+                <button
+                  onClick={() => setDashboardContrato("ENEL")}
+                  style={{
+                    border: "none", cursor: "pointer", padding: "6px 12px", borderRadius: 4, fontSize: 12, fontWeight: 700,
+                    background: dashboardContrato === "ENEL" ? "#C084FC" : "transparent",
+                    color: dashboardContrato === "ENEL" ? "#14181C" : "#8A93A0",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  ENEL ({contratoStatsMonitoria.enel})
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 12, color: "#6B7580", textTransform: "uppercase", letterSpacing: "0.08em" }}>Filtrar Setor</span>
               <select
                 value={dashboardSetor}
@@ -3360,7 +3679,7 @@ function DashboardView({
                 </div>
               </div>
 
-              {/* Setor bar + Agente Agressor */}
+              {/* Setor bar + Regional bar */}
               <div className="grid-charts-main">
                 <div style={cardStyle}>
                   <div style={titleStyle}>Filmagens por Setor</div>
@@ -3378,13 +3697,37 @@ function DashboardView({
                 </div>
 
                 <div style={cardStyle}>
-                  <div style={titleStyle}>Agentes Agressores Mais Frequentes</div>
-                  {dashMonitoria.agenteData.length === 0 ? (
+                  <div style={titleStyle}>Filmagens por Regional</div>
+                  {dashMonitoria.regionalData.length === 0 ? (
                     <div style={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7580", fontSize: 12 }}>
-                      Nenhum agente agressor registrado no período.
+                      Nenhuma regional informada no período.
                     </div>
                   ) : (
                     <ResponsiveContainer width="100%" height={260}>
+                      <BarChart data={dashMonitoria.regionalData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#2E3540" vertical={false} />
+                        <XAxis dataKey="name" stroke="#6B7580" fontSize={10} tickLine={false} axisLine={{ stroke: "#2E3540" }} />
+                        <YAxis stroke="#6B7580" fontSize={11} tickLine={false} axisLine={{ stroke: "#2E3540" }} allowDecimals={false} />
+                        <Tooltip contentStyle={{ background: "#1C2126", border: "1px solid #2E3540", borderRadius: 6, fontSize: 12 }} labelStyle={{ color: "#E8EBEE" }} />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                        <Bar dataKey="Conforme" stackId="a" fill={CHART_COLORS.conforme} radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="Não conforme" stackId="a" fill={CHART_COLORS.naoConforme} radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+
+              {/* Agente Agressor + Tratativas + Top Fiscais */}
+              <div className="grid-3">
+                <div style={cardStyle}>
+                  <div style={titleStyle}>Agentes Agressores</div>
+                  {dashMonitoria.agenteData.length === 0 ? (
+                    <div style={{ height: 240, display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7580", fontSize: 12 }}>
+                      Nenhum agente registrado.
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={240}>
                       <BarChart data={dashMonitoria.agenteData} layout="vertical" margin={{ left: 8 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#2E3540" horizontal={false} />
                         <XAxis type="number" stroke="#6B7580" fontSize={11} tickLine={false} axisLine={{ stroke: "#2E3540" }} allowDecimals={false} />
@@ -3395,15 +3738,12 @@ function DashboardView({
                     </ResponsiveContainer>
                   )}
                 </div>
-              </div>
 
-              {/* Tratativas + Top Fiscais */}
-              <div className="grid-charts-sub">
                 <div style={cardStyle}>
                   <div style={titleStyle}>Tratativas Aplicadas</div>
                   {dashMonitoria.tratativaData.length === 0 ? (
                     <div style={{ height: 240, display: "flex", alignItems: "center", justifyContent: "center", color: "#6B7580", fontSize: 12 }}>
-                      Nenhuma tratativa registrada no período.
+                      Nenhuma tratativa registrada.
                     </div>
                   ) : (
                     <ResponsiveContainer width="100%" height={240}>
@@ -3419,7 +3759,7 @@ function DashboardView({
                 </div>
 
                 <div style={cardStyle}>
-                  <div style={titleStyle}>Top Fiscais (Filmagens Realizadas)</div>
+                  <div style={titleStyle}>Top Fiscais (Filmagens)</div>
                   <ResponsiveContainer width="100%" height={240}>
                     <BarChart data={dashMonitoria.fiscalData} layout="vertical" margin={{ left: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#2E3540" horizontal={false} />
