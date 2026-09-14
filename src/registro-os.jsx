@@ -6,7 +6,7 @@ import {
   Zap, Plus, Trash2, Download, Camera, CheckCircle2, XCircle,
   LayoutGrid, ClipboardList, AlertTriangle, UserPlus, Film,
   Calendar, Building2, Users, ShieldCheck, FileText, Check,
-  Layers, ChevronRight, Edit3, Sparkles, MapPin
+  Layers, ChevronRight, Edit3, Sparkles, MapPin, ShieldAlert
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -31,6 +31,9 @@ const EMPTY = {
   matriculaEletricista: "",
   registroFoto: "Enviado",
   observacao: "",
+  haRegrasOuro: "Não",
+  regrasOuroConformidade: "Conforme",
+  descNaoConformidadeRegrasOuro: "",
   regrasOuro: {
     desligamentoRede: false,
     seccionamento: false,
@@ -161,7 +164,7 @@ const RULES_DE_OURO = {
 };
 
 const RULE_IMAGES = {
-  desligamentoRede: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%23212A30'/><path d='M30 40h60v10H30zM30 60h50v10H30zM30 80h30v10H30z' fill='%23E8930C'/><circle cx='90' cy='70' r='10' fill='%23E8930C'/></svg>`,
+  desligamentoRede: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%23212A30'/><path d='M30 40h60v10H30zM30 60h50v10H30z' fill='%23E8930C'/><circle cx='90' cy='70' r='10' fill='%23E8930C'/></svg>`,
   seccionamento: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%23212A30'/><path d='M35 30l25 30-25 30' stroke='%23E8930C' stroke-width='10' fill='none'/><path d='M85 30l-25 30 25 30' stroke='%23E8930C' stroke-width='10' fill='none'/></svg>`,
   bloqueio: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%23212A30'/><rect x='33' y='55' width='54' height='30' rx='6' fill='%23E8930C'/><path d='M48 55v-15a12 12 0 1 1 24 0v15' stroke='%2314181C' stroke-width='10' fill='none'/><circle cx='89' cy='70' r='5' fill='%2314181C'/></svg>`,
   atestar: `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'><rect width='120' height='120' rx='18' fill='%23E8930C'/><path d='M30 70l20 18 40-52' stroke='%23E8930C' stroke-width='10' fill='none'/></svg>`,
@@ -182,6 +185,7 @@ const CHART_COLORS = {
   accent2: "#4D8FFF",
   rose: "#F43F5E",
   purple: "#C084FC",
+  gold: "#F59E0B",
 };
 
 const REGIONAIS_POR_CONTRATO = {
@@ -383,7 +387,8 @@ export default function App() {
 
   const requiredOk =
     form.data &&
-    (form.conformidade !== "Não conforme" || form.descNaoConformidade.trim().length > 0);
+    (form.conformidade !== "Não conforme" || form.descNaoConformidade.trim().length > 0) &&
+    (form.haRegrasOuro !== "Sim" || form.regrasOuroConformidade !== "Não conforme" || (form.descNaoConformidadeRegrasOuro && form.descNaoConformidadeRegrasOuro.trim().length > 0));
 
   // Monitoria dynamic lists
   const handleAddEletricista = () => {
@@ -532,10 +537,14 @@ export default function App() {
       ["Obras", "Emergencial", "Comercial", "OBRAS", "EMERGENCIAL", "COMERCIAL"].includes(row.tipoInspecao) ||
       ["Cantagalo", "Macaé", "Pádua", "Angra", "CANTAGALO", "MACAÉ", "PADUA", "ANGRA"].includes(row.regional);
     const inferredContrato = row.contrato || (isEnel ? "ENEL" : "LIGHT");
+    const hasGold = (row.regrasOuro && Object.values(row.regrasOuro).some(Boolean)) || row.haRegrasOuro === "Sim";
     setForm({
       ...EMPTY,
       ...row,
       contrato: inferredContrato,
+      haRegrasOuro: row.haRegrasOuro || (hasGold ? "Sim" : "Não"),
+      regrasOuroConformidade: row.regrasOuroConformidade || "Conforme",
+      descNaoConformidadeRegrasOuro: row.descNaoConformidadeRegrasOuro || "",
     });
     setEditingId(row.id);
     setView("registro");
@@ -734,6 +743,7 @@ export default function App() {
         r.os, r.encarregado, r.contrato, r.regional, r.tipoServico, r.processo, 
         r.filial, r.naoEnvio, r.tipoRegistro, r.tipoInspecao, r.quemInspecionou,
         r.placaVeiculo, r.fiscal, r.setor, r.supervisorResponsavel, r.agenteAgressor, r.tratativas,
+        r.descNaoConformidadeRegrasOuro,
         ...(Array.isArray(r.eletricistas) ? r.eletricistas : []),
         ...(Array.isArray(r.motoristas) ? r.motoristas : [])
       ];
@@ -802,7 +812,7 @@ export default function App() {
       if (r.conformidade === "Não conforme") naoConformeCount++;
       if (r.registroFoto === "Não enviado") naoEnviadas++;
 
-      const hasGold = r.regrasOuro && Object.values(r.regrasOuro).some(Boolean);
+      const hasGold = r.haRegrasOuro === "Sim" || (r.regrasOuro && Object.values(r.regrasOuro).some(Boolean));
       if (hasGold) goldRuleCount++;
 
       // Inspecao counts
@@ -989,6 +999,7 @@ export default function App() {
     }
 
     const data = filtered.map((r) => {
+      const hasGold = r.haRegrasOuro === "Sim" || (r.regrasOuro && Object.values(r.regrasOuro).some(Boolean));
       const rowData = {
         "Data": formatDateForExport(r.data),
         "Contrato": getContrato(r),
@@ -1005,6 +1016,9 @@ export default function App() {
         "Tipo de Inspeção": r.tipoInspecao || "",
         "Processo": r.processo || "",
         "Registro de Foto": r.registroFoto || "",
+        "Há Regras de Ouro": hasGold ? "Sim" : "Não",
+        "Conformidade Regras de Ouro": hasGold ? (r.regrasOuroConformidade || "Conforme") : "N/A",
+        "Desvio Regras de Ouro": r.descNaoConformidadeRegrasOuro || "",
       };
       Object.entries(RULES_DE_OURO).forEach(([key, label]) => {
         rowData[label] = r.regrasOuro?.[key] ? "Sim" : "Não";
@@ -1016,7 +1030,8 @@ export default function App() {
     ws["!cols"] = [
       { wch: 12 }, { wch: 10 }, { wch: 22 }, { wch: 12 }, { wch: 26 }, { wch: 14 },
       { wch: 22 }, { wch: 32 }, { wch: 22 }, { wch: 24 }, { wch: 24 }, { wch: 20 },
-      { wch: 18 }, { wch: 16 }, { wch: 16 }, ...Object.keys(RULES_DE_OURO).map(() => ({ wch: 20 }))
+      { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 24 }, { wch: 32 },
+      ...Object.keys(RULES_DE_OURO).map(() => ({ wch: 20 }))
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Registros");
@@ -1100,20 +1115,25 @@ export default function App() {
 
     const tableColumn = [
       "Data", "Contrato", "Encarregado", "OS", "Regional", "Status",
-      "Processo", "Quem Insp.", "Tipo Insp.", "Foto"
+      "Processo", "Quem Insp.", "Tipo Insp.", "Regras de Ouro", "Foto"
     ];
-    const tableRows = filtered.map((r) => [
-      formatDateForExport(r.data),
-      getContrato(r),
-      r.encarregado || "-",
-      r.os || "-",
-      r.regional || "-",
-      r.conformidade || "-",
-      r.processo || "-",
-      r.quemInspecionou || "-",
-      r.tipoInspecao || "-",
-      r.registroFoto || "-",
-    ]);
+    const tableRows = filtered.map((r) => {
+      const hasGold = r.haRegrasOuro === "Sim" || (r.regrasOuro && Object.values(r.regrasOuro).some(Boolean));
+      const goldStatus = hasGold ? (r.regrasOuroConformidade === "Não conforme" ? "Não Conforme" : "Conforme") : "Não";
+      return [
+        formatDateForExport(r.data),
+        getContrato(r),
+        r.encarregado || "-",
+        r.os || "-",
+        r.regional || "-",
+        r.conformidade || "-",
+        r.processo || "-",
+        r.quemInspecionou || "-",
+        r.tipoInspecao || "-",
+        goldStatus,
+        r.registroFoto || "-",
+      ];
+    });
 
     autoTable(doc, {
       head: [tableColumn],
@@ -1920,14 +1940,14 @@ export default function App() {
           <div className="form-section-card">
             <div className="form-section-header">
               <div className="form-section-title">
-                <ShieldCheck size={16} /> 3. Avaliação & Registro Fotográfico
+                <ShieldCheck size={16} /> 3. Avaliação Geral & Registro Fotográfico
               </div>
             </div>
 
             <div className="grid-2" style={{ alignItems: "start" }}>
               {/* Conformidade */}
               <div>
-                <label className="field-label">Status de Conformidade *</label>
+                <label className="field-label">Status Geral de Conformidade *</label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <div
                     className="radio-pill"
@@ -1963,7 +1983,7 @@ export default function App() {
                   <div style={{ marginTop: 12 }}>
                     <label className="field-label" style={{ color: "#E8930C" }}>
                       <AlertTriangle size={13} />
-                      Descreva o desvio / não conformidade *
+                      Descreva o desvio / não conformidade geral *
                     </label>
                     <textarea
                       className="field-input"
@@ -2023,6 +2043,172 @@ export default function App() {
             </div>
           </div>
 
+          {/* SEÇÃO 4: REGRAS DE OURO / NR10 */}
+          <div className="form-section-card" style={{ borderColor: form.haRegrasOuro === "Sim" ? "rgba(245, 158, 11, 0.4)" : "#28303B" }}>
+            <div className="form-section-header">
+              <div className="form-section-title" style={{ color: "#F59E0B" }}>
+                <ShieldAlert size={16} /> 4. Regras de Ouro / NR10
+              </div>
+            </div>
+
+            {/* Pergunta: Há Regras de Ouro? */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+              <label className="field-label" style={{ margin: 0, fontSize: 13, color: "#E8EBEE" }}>
+                ⚡ Há Regras de Ouro aplicáveis na atividade?
+              </label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <div
+                  className="radio-pill"
+                  onClick={() => setForm((f) => ({
+                    ...f,
+                    haRegrasOuro: "Não",
+                    regrasOuroConformidade: "Conforme",
+                    descNaoConformidadeRegrasOuro: "",
+                    regrasOuro: {
+                      desligamentoRede: false,
+                      seccionamento: false,
+                      bloqueio: false,
+                      atestar: false,
+                      protegerEquipamentosEnergizados: false,
+                      epi: false,
+                    }
+                  }))}
+                  style={{
+                    background: form.haRegrasOuro === "Não" ? "#1F2937" : "#14181C",
+                    borderColor: form.haRegrasOuro === "Não" ? "#6B7280" : "#2E3540",
+                    color: form.haRegrasOuro === "Não" ? "#E8EBEE" : "#8A93A0",
+                    padding: "8px 20px",
+                    gap: 6,
+                    fontWeight: 700,
+                  }}
+                >
+                  <XCircle size={15} /> Não
+                </div>
+                <div
+                  className="radio-pill"
+                  onClick={() => update("haRegrasOuro", "Sim")}
+                  style={{
+                    background: form.haRegrasOuro === "Sim" ? "rgba(245, 158, 11, 0.18)" : "#14181C",
+                    borderColor: form.haRegrasOuro === "Sim" ? "#F59E0B" : "#2E3540",
+                    color: form.haRegrasOuro === "Sim" ? "#F59E0B" : "#8A93A0",
+                    padding: "8px 20px",
+                    gap: 6,
+                    fontWeight: 700,
+                    boxShadow: form.haRegrasOuro === "Sim" ? "0 0 12px rgba(245, 158, 11, 0.25)" : "none",
+                  }}
+                >
+                  <CheckCircle2 size={15} /> Sim
+                </div>
+              </div>
+            </div>
+
+            {/* Se "Sim", expande as etapas e a conformidade */}
+            {form.haRegrasOuro === "Sim" && (
+              <div style={{ display: "grid", gap: 16, paddingTop: 14, borderTop: "1px solid #28303B" }}>
+                {/* 1. Etapas / Regras aplicáveis */}
+                <div>
+                  <label className="field-label" style={{ color: "#F59E0B", marginBottom: 10 }}>
+                    Selecione as etapas executadas / aplicáveis:
+                  </label>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
+                    {Object.entries(RULES_DE_OURO).map(([key, label]) => {
+                      const isChecked = Boolean(form.regrasOuro[key]);
+                      return (
+                        <div
+                          key={key}
+                          style={{
+                            background: isChecked ? "rgba(245, 158, 11, 0.12)" : "#14181C",
+                            border: `1px solid ${isChecked ? "#F59E0B" : "#2E3540"}`,
+                            borderRadius: 8,
+                            padding: "10px 12px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                            userSelect: "none",
+                          }}
+                          onClick={() => update("regrasOuro", { ...form.regrasOuro, [key]: !isChecked })}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}}
+                            style={{ width: 16, height: 16, accentColor: "#F59E0B", cursor: "pointer" }}
+                          />
+                          <img
+                            src={getRuleImage(key)}
+                            alt={label}
+                            style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", background: "#0F1519" }}
+                          />
+                          <span style={{ fontSize: 12, fontWeight: isChecked ? 700 : 500, color: isChecked ? "#FDE68A" : "#E8EBEE" }}>
+                            {label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Conformidade das Regras de Ouro */}
+                <div style={{ background: "#14181C", border: "1px solid #2E3540", borderRadius: 8, padding: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                    <label className="field-label" style={{ margin: 0, fontSize: 12, color: "#E8EBEE" }}>
+                      As Regras de Ouro estão em conformidade? *
+                    </label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <div
+                        className="radio-pill"
+                        onClick={() => setForm((f) => ({ ...f, regrasOuroConformidade: "Conforme", descNaoConformidadeRegrasOuro: "" }))}
+                        style={{
+                          background: form.regrasOuroConformidade === "Conforme" ? "#1F6B3A" : "#1C2126",
+                          borderColor: form.regrasOuroConformidade === "Conforme" ? "#2F9E52" : "#2E3540",
+                          color: form.regrasOuroConformidade === "Conforme" ? "#EAF4EE" : "#8A93A0",
+                          padding: "8px 18px",
+                          gap: 6,
+                          fontWeight: 700,
+                        }}
+                      >
+                        <CheckCircle2 size={14} /> Conforme
+                      </div>
+                      <div
+                        className="radio-pill"
+                        onClick={() => update("regrasOuroConformidade", "Não conforme")}
+                        style={{
+                          background: form.regrasOuroConformidade === "Não conforme" ? "#7A2626" : "#1C2126",
+                          borderColor: form.regrasOuroConformidade === "Não conforme" ? "#D64545" : "#2E3540",
+                          color: form.regrasOuroConformidade === "Não conforme" ? "#FBEAEA" : "#8A93A0",
+                          padding: "8px 18px",
+                          gap: 6,
+                          fontWeight: 700,
+                        }}
+                      >
+                        <XCircle size={14} /> Não conforme
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. Se Não Conforme nas Regras de Ouro: Campo para descrever */}
+                  {form.regrasOuroConformidade === "Não conforme" && (
+                    <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #28303B" }}>
+                      <label className="field-label" style={{ color: "#F59E0B" }}>
+                        <AlertTriangle size={13} />
+                        Descreva o desvio / não conformidade nas Regras de Ouro *
+                      </label>
+                      <textarea
+                        className="field-input"
+                        style={{ resize: "vertical", minHeight: 75, fontFamily: "inherit", borderColor: "#F59E0B" }}
+                        placeholder="Descreva detalhadamente qual regra de ouro não foi cumprida ou qual desvio ocorreu..."
+                        value={form.descNaoConformidadeRegrasOuro}
+                        onChange={(e) => update("descNaoConformidadeRegrasOuro", e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Submit Action */}
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", marginTop: 20 }}>
             <button className="btn-primary" disabled={!requiredOk} onClick={handleSubmit}>
@@ -2030,9 +2216,13 @@ export default function App() {
             </button>
             {!requiredOk && (
               <span style={{ fontSize: 12, color: "#8A93A0" }}>
-                {form.conformidade === "Não conforme" && !form.descNaoConformidade.trim()
-                  ? "⚠️ Preencha a descrição da não conformidade para salvar."
-                  : "⚠️ Selecione a data da inspeção para salvar."}
+                {!form.data
+                  ? "⚠️ Selecione a data da inspeção para salvar."
+                  : form.conformidade === "Não conforme" && !form.descNaoConformidade.trim()
+                  ? "⚠️ Preencha a descrição da não conformidade geral para salvar."
+                  : form.haRegrasOuro === "Sim" && form.regrasOuroConformidade === "Não conforme" && (!form.descNaoConformidadeRegrasOuro || !form.descNaoConformidadeRegrasOuro.trim())
+                  ? "⚠️ Preencha a descrição da não conformidade nas Regras de Ouro para salvar."
+                  : ""}
               </span>
             )}
           </div>
@@ -2110,6 +2300,7 @@ export default function App() {
                     const fs = FOTO_STYLES[r.registroFoto] || FOTO_STYLES["Enviado"];
                     const cto = getContrato(r);
                     const isConforme = r.conformidade === "Conforme";
+                    const hasGold = r.haRegrasOuro === "Sim" || (r.regrasOuro && Object.values(r.regrasOuro).some(Boolean));
 
                     return (
                       <div key={r.id} className="record-card-mobile">
@@ -2145,7 +2336,27 @@ export default function App() {
                           {r.processo && <div><strong>Processo:</strong> {r.processo}</div>}
                           {r.descNaoConformidade && (
                             <div style={{ color: "#FCA5A5", background: "#3A1B1B", padding: "6px 8px", borderRadius: 4, marginTop: 4 }}>
-                              ⚠️ <strong>Desvio:</strong> {r.descNaoConformidade}
+                              ⚠️ <strong>Desvio Geral:</strong> {r.descNaoConformidade}
+                            </div>
+                          )}
+
+                          {hasGold && (
+                            <div style={{ fontSize: 11, background: "#1C2126", border: "1px solid #3A4452", borderRadius: 6, padding: "6px 8px", marginTop: 4 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span style={{ color: "#F59E0B", fontWeight: 700 }}>⚡ Regras de Ouro:</span>
+                                <span style={{
+                                  fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8,
+                                  background: r.regrasOuroConformidade === "Não conforme" ? "#7A2626" : "#1F6B3A",
+                                  color: r.regrasOuroConformidade === "Não conforme" ? "#FBEAEA" : "#EAF4EE"
+                                }}>
+                                  {r.regrasOuroConformidade || "Conforme"}
+                                </span>
+                              </div>
+                              {r.descNaoConformidadeRegrasOuro && (
+                                <div style={{ color: "#FCA5A5", marginTop: 4 }}>
+                                  ⚠️ <strong>Desvio RO:</strong> {r.descNaoConformidadeRegrasOuro}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -2193,7 +2404,6 @@ export default function App() {
                     <th>Eletricista</th>
                     <th>Quem inspecionou</th>
                     <th>Tipo Inspeção</th>
-                    <th>Arquivos Regras</th>
                     <th>Regras de Ouro</th>
                     <th>Foto</th>
                     <th></th>
@@ -2202,7 +2412,7 @@ export default function App() {
                 <tbody>
                   {pageRows.length === 0 && (
                     <tr>
-                      <td colSpan={17} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
+                      <td colSpan={16} style={{ textAlign: "center", color: "#6B7580", padding: "32px 12px" }}>
                         {rows.length === 0 ? "Nenhum registro ainda. Preencha o formulário acima para começar." : "Nenhum resultado para esse filtro."}
                       </td>
                     </tr>
@@ -2210,9 +2420,11 @@ export default function App() {
                   {pageRows.map((r) => {
                     const fs = FOTO_STYLES[r.registroFoto] || FOTO_STYLES["Enviado"];
                     const cto = getContrato(r);
+                    const hasGold = r.haRegrasOuro === "Sim" || (r.regrasOuro && Object.values(r.regrasOuro).some(Boolean));
+                    const isGoldNaoConforme = hasGold && r.regrasOuroConformidade === "Não conforme";
                     return (
                       <tr key={r.id}>
-                        <td>{r.data}</td>
+                        <td>{formatDateForExport(r.data)}</td>
                         <td>
                           <span style={{
                             fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
@@ -2247,20 +2459,31 @@ export default function App() {
                         <td style={{ color: "#38BDF8", fontWeight: 600 }}>{r.quemInspecionou || "—"}</td>
                         <td>{r.tipoInspecao || "—"}</td>
                         <td>
-                          <div style={{ display: "grid", gap: 4 }}>
-                            {Object.entries(r.regrasArquivos || {}).filter(([, file]) => file).map(([key, file]) => (
-                              <span key={`${key}-${file.name}`} style={{ fontSize: 11, color: "#E8EBEE" }}>{`${RULES_DE_OURO[key]}: ${file.name}`}</span>
-                            ))}
-                          </div>
-                        </td>
-                        <td>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                            {Object.entries(r.regrasOuro || {})
-                              .filter(([, value]) => value)
-                              .map(([key]) => (
-                                <span key={key} style={{ fontSize: 11, color: "#8A93A0" }}>{RULES_DE_OURO[key]}</span>
-                              ))}
-                          </div>
+                          {hasGold ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                              <span
+                                title={isGoldNaoConforme ? r.descNaoConformidadeRegrasOuro : undefined}
+                                style={{
+                                  fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 10,
+                                  background: isGoldNaoConforme ? "#7A2626" : "#1F6B3A",
+                                  color: isGoldNaoConforme ? "#FBEAEA" : "#EAF4EE",
+                                  display: "inline-flex", alignItems: "center", gap: 3, width: "fit-content",
+                                  cursor: isGoldNaoConforme ? "help" : "default"
+                                }}
+                              >
+                                {isGoldNaoConforme ? "RO: Não Conforme ⓘ" : "RO: Conforme"}
+                              </span>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 1, fontSize: 11, color: "#8A93A0" }}>
+                                {Object.entries(r.regrasOuro || {})
+                                  .filter(([, value]) => value)
+                                  .map(([key]) => (
+                                    <span key={key}>• {RULES_DE_OURO[key]}</span>
+                                  ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: 11, color: "#6B7580" }}>—</span>
+                          )}
                         </td>
                         <td>
                           <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 20, background: fs.bg, color: fs.fg }}>
