@@ -84,6 +84,10 @@ const INSPECTORES_ENEL = [
   "JOSE DOS REIS",
   "DEBORA BRASIL",
   "SUELLEN Christine Barbosa",
+  "Luis Fabiano Gabry",
+  "Nivaldo Teixeira",
+  "Bruno Cesar da Silveira",
+  "Marcello Sermoud",
 ];
 
 const FISCAIS_OPTIONS = [
@@ -1836,7 +1840,7 @@ export default function App() {
               {/* Quem inspecionou */}
               <div>
                 <label className="field-label" style={{ color: form.contrato === "ENEL" ? "#C084FC" : "#38BDF8" }}>
-                  {form.contrato === "ENEL" ? "Téc. de Segurança do Trabalho *" : "Quem inspecionou"}
+                  {form.contrato === "ENEL" ? "Agente Inspetor *" : "Quem inspecionou"}
                 </label>
                 {form.contrato === "ENEL" ? (
                   <select
@@ -1845,7 +1849,7 @@ export default function App() {
                     onChange={(e) => update("quemInspecionou", e.target.value)}
                     style={{ appearance: "auto", borderColor: "#7E22CE" }}
                   >
-                    <option value="">Selecione o Téc. de Segurança...</option>
+                    <option value="">Selecione o Agente Inspetor...</option>
                     {INSPECTORES_ENEL.map((name) => (
                       <option key={name} value={name}>{name}</option>
                     ))}
