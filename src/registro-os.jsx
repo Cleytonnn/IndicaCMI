@@ -108,6 +108,7 @@ const FISCAIS_OPTIONS = [
   "BRUNO CESAR",
   "DOMINGOS AGUIAR",
   "MAURICIO",
+  "CLEYTON BAUMGRATZ",
 ];
 
 const SETORES_OPTIONS = [
@@ -2668,14 +2669,14 @@ export default function App() {
 
               <div className="grid-3">
                 <div>
-                  <label className="field-label">Fiscal Responsável</label>
+                  <label className="field-label">Agente Inspetor / Fiscal</label>
                   <select
                     className="field-input"
                     value={formMonitoria.fiscal}
                     onChange={(e) => updateMonitoria("fiscal", e.target.value)}
                     style={{ appearance: "auto" }}
                   >
-                    <option value="">Selecione o fiscal...</option>
+                    <option value="">Selecione o agente inspetor / fiscal...</option>
                     {FISCAIS_OPTIONS.map((name) => (
                       <option key={name} value={name}>{name}</option>
                     ))}
