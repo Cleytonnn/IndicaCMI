@@ -23,6 +23,9 @@ const recordSchema = new mongoose.Schema({
   naoConformidade: String,
   naoEnvio: String,
   tipoRegistro: String, // 'registro' | 'naoEnvio' | 'monitoria'
+  haRegrasOuro: String,
+  regrasOuroConformidade: String,
+  descNaoConformidadeRegrasOuro: String,
   regrasOuro: { type: Object, default: {} },
   regrasArquivos: { type: Object, default: {} },
   // Campos de Monitoria:
